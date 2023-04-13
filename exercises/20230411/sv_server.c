@@ -73,13 +73,14 @@ int main(int argc, char *argv[])
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        int n = recv(client, buf, MAX_LENGTH, 0);
-        if (n == -1)
+        int bytes_received = recv(client, buf, MAX_LENGTH, 0);
+        if (bytes_received == -1)
         {
             perror("recv() failed");
             exit(EXIT_FAILURE);
         }
-        
+        buf[bytes_received] = '\0';
+
         time_t current_time = time(NULL);
         char *formatted_time = ctime(&current_time);
         formatted_time[strlen(formatted_time) - 1] = '\0';
@@ -94,6 +95,7 @@ int main(int argc, char *argv[])
         printf("%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
         fprintf(log_file, "%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
         fclose(log_file);
+        close(client);
     }
     return 0;
 }
