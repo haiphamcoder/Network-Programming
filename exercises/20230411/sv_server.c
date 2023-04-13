@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
             perror("recv() failed");
             exit(EXIT_FAILURE);
         }
+        
         time_t current_time = time(NULL);
         char *formatted_time = ctime(&current_time);
         formatted_time[strlen(formatted_time) - 1] = '\0';

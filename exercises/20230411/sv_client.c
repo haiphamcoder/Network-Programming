@@ -48,35 +48,49 @@ int main(int argc, char *argv[])
     memset(ngaysinh, 0, MAX_LENGTH);
     memset(diem, 0, MAX_LENGTH);
 
-    printf("Enter student information:\n");
-    printf("\t- MSSV: ");
-    fgets(mssv, MAX_LENGTH, stdin);
-    mssv[strcspn(mssv, "\n")] = 0;
-
-    printf("\t- Họ tên: ");
-    fgets(hoten, MAX_LENGTH, stdin);
-    hoten[strcspn(hoten, "\n")] = 0;
-
-    printf("\t- Ngày sinh: ");
-    fgets(ngaysinh, MAX_LENGTH, stdin);
-    ngaysinh[strcspn(ngaysinh, "\n")] = 0;
-
-    printf("\t- Điểm trung bình: ");
-    fgets(diem, MAX_LENGTH, stdin);
-    diem[strcspn(diem, "\n")] = 0;
-
-    // Đóng gói thông tin sinh viên vào buffer để gửi đến server
-    char buffer[4 * MAX_LENGTH + 1];
-    memset(buffer, 0, 4 * MAX_LENGTH + 1);
-    sprintf(buffer, "%s %s %s %s\n", mssv, hoten, ngaysinh, diem);
-
-    // Gửi buffer chứa thông tin sinh viên đến server
-    if (send(client, buffer, strlen(buffer), 0) == -1)
+    while (1)
     {
-        perror("send() failed");
-        return 1;
+        printf("Enter student information:\n");
+        printf("\t- MSSV: ");
+        fgets(mssv, MAX_LENGTH, stdin);
+        mssv[strcspn(mssv, "\n")] = 0;
+
+        printf("\t- Họ tên: ");
+        fgets(hoten, MAX_LENGTH, stdin);
+        hoten[strcspn(hoten, "\n")] = 0;
+
+        printf("\t- Ngày sinh: ");
+        fgets(ngaysinh, MAX_LENGTH, stdin);
+        ngaysinh[strcspn(ngaysinh, "\n")] = 0;
+
+        printf("\t- Điểm trung bình: ");
+        fgets(diem, MAX_LENGTH, stdin);
+        diem[strcspn(diem, "\n")] = 0;
+
+        // Đóng gói thông tin sinh viên vào buffer để gửi đến server
+        char buffer[4 * MAX_LENGTH + 1];
+        memset(buffer, 0, 4 * MAX_LENGTH + 1);
+        sprintf(buffer, "%s %s %s %s\n", mssv, hoten, ngaysinh, diem);
+
+        // Gửi buffer chứa thông tin sinh viên đến server
+        if (send(client, buffer, strlen(buffer), 0) == -1)
+        {
+            perror("send() failed");
+            return 1;
+        }
+        printf("Data sent successfully\n");
+        
+        // Hỏi người dùng có muốn nhập tiếp không
+        char choice[MAX_LENGTH];
+        memset(choice, 0, MAX_LENGTH);
+        printf("Do you want to continue? (y/n): ");
+        fgets(choice, MAX_LENGTH, stdin);
+        choice[strcspn(choice, "\n")] = 0;
+        if (strcmp(choice, "n") == 0)
+        {
+            break;
+        }
     }
-    printf("Data sent successfully\n");
 
     // Đóng kết nối socket
     close(client);
