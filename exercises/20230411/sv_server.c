@@ -73,28 +73,36 @@ int main(int argc, char *argv[])
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        int bytes_received = recv(client, buf, MAX_LENGTH, 0);
-        if (bytes_received == -1)
+        while (1)
         {
-            perror("recv() failed");
-            exit(EXIT_FAILURE);
-        }
-        buf[bytes_received] = '\0';
+            int bytes_received = recv(client, buf, MAX_LENGTH, 0);
+            if (bytes_received == -1)
+            {
+                perror("recv() failed");
+                exit(EXIT_FAILURE);
+            }
+            buf[bytes_received] = '\0';
+            if (strcmp(buf, "exit\n") == 0)
+            {
+                printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+                break;
+            }
 
-        time_t current_time = time(NULL);
-        char *formatted_time = ctime(&current_time);
-        formatted_time[strlen(formatted_time) - 1] = '\0';
+            time_t current_time = time(NULL);
+            char *formatted_time = ctime(&current_time);
+            formatted_time[strlen(formatted_time) - 1] = '\0';
 
-        // Ghi vào file log
-        FILE *log_file = fopen(argv[2], "a");
-        if (log_file == NULL)
-        {
-            perror("fopen() failed");
-            exit(EXIT_FAILURE);
+            // Ghi vào file log
+            FILE *log_file = fopen(argv[2], "a");
+            if (log_file == NULL)
+            {
+                perror("fopen() failed");
+                exit(EXIT_FAILURE);
+            }
+            printf("%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
+            fprintf(log_file, "%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
+            fclose(log_file);
         }
-        printf("%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
-        fprintf(log_file, "%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
-        fclose(log_file);
         close(client);
     }
     return 0;

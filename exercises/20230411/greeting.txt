@@ -1,2 +1,2 @@
-Hello World!
-I'm Hai
+Hello! I'm Hai.
+Welcome to Network Programming!

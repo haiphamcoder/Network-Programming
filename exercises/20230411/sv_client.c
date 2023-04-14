@@ -25,30 +25,30 @@ int main(int argc, char *argv[])
     server_addr.sin_addr.s_addr = inet_addr(argv[1]);
     server_addr.sin_port = htons(atoi(argv[2]));
 
-    // Nhập thông tin sinh viên từ bàn phím
-    char mssv[MAX_LENGTH], hoten[MAX_LENGTH], ngaysinh[MAX_LENGTH], diem[MAX_LENGTH];
-    memset(mssv, 0, MAX_LENGTH);
-    memset(hoten, 0, MAX_LENGTH);
-    memset(ngaysinh, 0, MAX_LENGTH);
-    memset(diem, 0, MAX_LENGTH);
+    // Tạo socket
+    int client = socket(AF_INET, SOCK_STREAM, 0);
+    if (client == -1)
+    {
+        perror("socket() failed");
+        return 1;
+    }
+
+    // Kết nối đến server
+    if (connect(client, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    {
+        perror("connect() failed");
+        return 1;
+    }
+    printf("Connection to %s %s port [tcp/*] succeeded!\n", argv[1], argv[2]);
 
     while (1)
     {
-        // Tạo socket
-        int client = socket(AF_INET, SOCK_STREAM, 0);
-        if (client == -1)
-        {
-            perror("socket() failed");
-            return 1;
-        }
-
-        // Kết nối đến server
-        if (connect(client, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
-        {
-            perror("connect() failed");
-            return 1;
-        }
-        printf("Connection to %s %s port [tcp/*] succeeded!\n", argv[1], argv[2]);
+        // Nhập thông tin sinh viên từ bàn phím
+        char mssv[MAX_LENGTH], hoten[MAX_LENGTH], ngaysinh[MAX_LENGTH], diem[MAX_LENGTH];
+        memset(mssv, 0, MAX_LENGTH);
+        memset(hoten, 0, MAX_LENGTH);
+        memset(ngaysinh, 0, MAX_LENGTH);
+        memset(diem, 0, MAX_LENGTH);
 
         printf("Enter student information:\n");
         printf("\t- MSSV: ");
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
             perror("send() failed");
             return 1;
         }
-        printf("Data sent successfully\n");
+        printf("Data sent successfully\n\n");
 
         // Hỏi người dùng có muốn nhập tiếp không
         char choice[MAX_LENGTH];
@@ -88,12 +88,17 @@ int main(int argc, char *argv[])
         choice[strcspn(choice, "\n")] = 0;
         if (strcmp(choice, "n") == 0)
         {
+            if(send(client, "exit\n", 5, 0) == -1)
+            {
+                perror("send() failed");
+                return 1;
+            }
             break;
         }
-        close(client);
     }
 
     // Đóng kết nối socket
-    
+    close(client);
+
     return 0;
 }

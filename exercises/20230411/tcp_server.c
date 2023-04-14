@@ -18,26 +18,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // Đọc nội dung tệp tin chứa câu chào
-    FILE *fp = fopen(argv[2], "r");
-    if (fp == NULL)
-    {
-        perror("fopen() failed");
-        exit(EXIT_FAILURE);
-    }
-    fseek(fp, 0, SEEK_END);
-    long fsize = ftell(fp);
-    rewind(fp);
-    char *greeting = (char *)malloc(fsize + 1);
-    if (greeting == NULL)
-    {
-        perror("malloc() failed");
-        exit(EXIT_FAILURE);
-    }
-    memset(greeting, 0, fsize + 1);
-    fread(greeting, fsize, 1, fp);
-    fclose(fp);
-
     // Tạo socket
     int server = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (server == -1)
@@ -68,9 +48,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // Nhận dữ liệu từ client
-    char buf[MAX_BUF_SIZE];
-    memset(buf, 0, MAX_BUF_SIZE);
     while (1)
     {
         printf("Waiting for client on %s %s\n",
@@ -93,35 +70,69 @@ int main(int argc, char *argv[])
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
+        // Đọc nội dung tệp tin chứa câu chào
+        FILE *fp = fopen(argv[2], "r");
+        if (fp == NULL)
+        {
+            perror("fopen() failed");
+            exit(EXIT_FAILURE);
+        }
+        fseek(fp, 0, SEEK_END);
+        long fsize = ftell(fp);
+        rewind(fp);
+        char *greeting = (char *)malloc(fsize + 1);
+        if (greeting == NULL)
+        {
+            perror("malloc() failed");
+            exit(EXIT_FAILURE);
+        }
+        memset(greeting, 0, fsize + 1);
+        fread(greeting, fsize, 1, fp);
+        fclose(fp);
+
         // Gửi câu chào đến client
         if (send(client, greeting, strlen(greeting), 0) == -1)
         {
             perror("send() failed");
             exit(EXIT_FAILURE);
         }
+        free(greeting);
 
-        // Nhận dữ liệu từ client và ghi vào tệp tin
-        if (recv(client, buf, MAX_BUF_SIZE, 0) == -1)
+        // Nhận dữ liệu từ client
+        char buf[MAX_BUF_SIZE];
+        memset(buf, 0, MAX_BUF_SIZE);
+        while (1)
         {
-            perror("recv() failed");
-            exit(EXIT_FAILURE);
-        }
+            // Nhận dữ liệu từ client và ghi vào tệp tin
+            int bytes_received = recv(client, buf, MAX_BUF_SIZE, 0);
+            if (bytes_received == -1)
+            {
+                perror("recv() failed");
+                exit(EXIT_FAILURE);
+            }
+            buf[bytes_received] = '\0';
+            if (strcmp(buf, "exit\n") == 0)
+            {
+                printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+                break;
+            }
+            printf("Received %ld bytes from client: %s", strlen(buf), buf);
 
-        fp = fopen(argv[3], "a");
-        if (fp == NULL)
-        {
-            perror("fopen() failed");
-            exit(EXIT_FAILURE);
+            fp = fopen(argv[3], "a");
+            if (fp == NULL)
+            {
+                perror("fopen() failed");
+                exit(EXIT_FAILURE);
+            }
+            fprintf(fp, "%s", buf);
+            fclose(fp);
         }
-        fprintf(fp, "%s", buf);
-        fclose(fp);
-
         // Đóng kết nối với client
         close(client);
     }
-    free(greeting);
 
     // Đóng socket
     close(server);
+
     return 0;
 }
