@@ -54,7 +54,8 @@ int main(int argc, char *argv[])
     server_addr.sin_port = htons(atoi(argv[1]));
 
     // Gán địa chỉ cho socket
-    if (bind(server, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
+    if (bind(server, (struct sockaddr *)&server_addr,
+             sizeof(server_addr)) == -1)
     {
         perror("bind() failed");
         exit(EXIT_FAILURE);
@@ -72,7 +73,8 @@ int main(int argc, char *argv[])
     memset(buf, 0, MAX_BUF_SIZE);
     while (1)
     {
-        printf("Waiting for client on %s %s\n", inet_ntoa(server_addr.sin_addr), argv[1]);
+        printf("Waiting for client on %s %s\n",
+               inet_ntoa(server_addr.sin_addr), argv[1]);
 
         // Chấp nhận kết nối từ client
         struct sockaddr_in client_addr;

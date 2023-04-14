@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     // Kiểm tra đầu vào
     if (argc != 3)
     {
-        printf("Usage: %s <IP address> <Port>\n", argv[0]);
+        printf("Usage: %s <server-IP-address> <Port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
