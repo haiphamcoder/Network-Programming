@@ -40,19 +40,8 @@ int main(int argc, char *argv[])
     }
     printf("Connection to %s %s port [tcp/*] succeeded!\n", argv[1], argv[2]);
 
-    // Nhận dữ liệu từ server
-    char buf[MAX_BUF_SIZE];
-    memset(buf, 0, MAX_BUF_SIZE);
-    int bytes_received = recv(client, buf, MAX_BUF_SIZE, 0);
-    if (bytes_received == -1)
-    {
-        perror("recv() failed");
-        exit(EXIT_FAILURE);
-    }
-    buf[bytes_received] = '\0';
-    printf("%s\n", buf);
-
     // Nhận dữ liệu từ bàn phím và gửi đến server
+    char buf[MAX_BUF_SIZE];
     memset(buf, 0, MAX_BUF_SIZE);
     while (1)
     {
