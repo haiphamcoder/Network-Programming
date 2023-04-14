@@ -75,6 +75,7 @@ int main(int argc, char *argv[])
 
         while (1)
         {
+            // Nhận dữ liệu từ client
             int bytes_received = recv(client, buf, MAX_LENGTH, 0);
             if (bytes_received == -1)
             {
@@ -82,12 +83,15 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             buf[bytes_received] = '\0';
+
+            // Kiểm tra xem client có muốn thoát không
             if (strcmp(buf, "exit\n") == 0)
             {
                 printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
                 break;
             }
 
+            // Lấy thời gian hiện tại
             time_t current_time = time(NULL);
             char *formatted_time = ctime(&current_time);
             formatted_time[strlen(formatted_time) - 1] = '\0';
@@ -103,6 +107,8 @@ int main(int argc, char *argv[])
             fprintf(log_file, "%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
             fclose(log_file);
         }
+
+        // Đóng kết nối
         close(client);
     }
     return 0;

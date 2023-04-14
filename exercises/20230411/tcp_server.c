@@ -111,13 +111,18 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
             }
             buf[bytes_received] = '\0';
+
+            // Nếu client gửi "exit" thì thoát khỏi vòng lặp
             if (strcmp(buf, "exit\n") == 0)
             {
                 printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
                 break;
             }
+
+            // In dữ liệu nhận được
             printf("Received %ld bytes from client: %s", strlen(buf), buf);
 
+            // Ghi dữ liệu vào tệp tin
             fp = fopen(argv[3], "a");
             if (fp == NULL)
             {

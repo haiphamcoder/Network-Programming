@@ -67,6 +67,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
 
+        // Kiểm tra xem có phải là lệnh thoát không
         if (strcmp(buf, "exit\n") == 0)
         {
             break;
