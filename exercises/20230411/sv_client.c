@@ -70,10 +70,11 @@ int main(int argc, char *argv[])
         // Đóng gói thông tin sinh viên vào buffer để gửi đến server
         char buffer[4 * MAX_LENGTH + 1];
         memset(buffer, 0, 4 * MAX_LENGTH + 1);
-        sprintf(buffer, "%s %s %s %s\n", mssv, hoten, ngaysinh, diem);
+        sprintf(buffer, "%s %s %s %s", mssv, hoten, ngaysinh, diem);
 
         // Gửi buffer chứa thông tin sinh viên đến server
-        if (send(client, buffer, strlen(buffer), 0) == -1)
+        int bytes_sent = send(client, buffer, strlen(buffer), 0);
+        if (bytes_sent == -1)
         {
             perror("send() failed");
             return 1;
@@ -81,14 +82,12 @@ int main(int argc, char *argv[])
         printf("Data sent successfully\n\n");
 
         // Hỏi người dùng có muốn nhập tiếp không
-        char choice[MAX_LENGTH];
-        memset(choice, 0, MAX_LENGTH);
         printf("Do you want to continue? (y/n): ");
-        fgets(choice, MAX_LENGTH, stdin);
-        choice[strcspn(choice, "\n")] = 0;
-        if (strcmp(choice, "n") == 0)
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\n")] = 0;
+        if (strcmp(buffer, "n") == 0)
         {
-            if(send(client, "exit\n", 5, 0) == -1)
+            if (send(client, "exit\n", 5, 0) == -1)
             {
                 perror("send() failed");
                 return 1;

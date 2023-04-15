@@ -77,15 +77,13 @@ int main(int argc, char *argv[])
         {
             // Nhận dữ liệu từ client
             int bytes_received = recv(client, buf, MAX_LENGTH, 0);
+            buf[bytes_received] = '\0';
             if (bytes_received == -1)
             {
                 perror("recv() failed");
                 exit(EXIT_FAILURE);
             }
-            buf[bytes_received] = '\0';
-
-            // Kiểm tra xem client có muốn thoát không
-            if (strcmp(buf, "exit\n") == 0)
+            else if (bytes_received == 0 || strcmp(buf, "exit\n") == 0)
             {
                 printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
                 break;
@@ -103,8 +101,8 @@ int main(int argc, char *argv[])
                 perror("fopen() failed");
                 exit(EXIT_FAILURE);
             }
-            printf("%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
-            fprintf(log_file, "%s %s %s", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
+            printf("%s %s %s\n", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
+            fprintf(log_file, "%s %s %s\n", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
             fclose(log_file);
         }
 

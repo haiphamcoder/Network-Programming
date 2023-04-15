@@ -105,15 +105,13 @@ int main(int argc, char *argv[])
         {
             // Nhận dữ liệu từ client và ghi vào tệp tin
             int bytes_received = recv(client, buf, MAX_BUF_SIZE, 0);
+            buf[bytes_received] = '\0';
             if (bytes_received == -1)
             {
                 perror("recv() failed");
                 exit(EXIT_FAILURE);
             }
-            buf[bytes_received] = '\0';
-
-            // Nếu client gửi "exit" thì thoát khỏi vòng lặp
-            if (strcmp(buf, "exit\n") == 0)
+            else if (bytes_received == 0 || strcmp(buf, "exit\n") == 0)
             {
                 printf("Client from %s:%d disconnected\n\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
                 break;
