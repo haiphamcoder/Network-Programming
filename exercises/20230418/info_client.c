@@ -53,12 +53,12 @@ int main(int argc, char *argv[])
         // Nhập số lượng ổ đĩa
         unsigned short numberDisk = 0;
         printf("Enter number disk: ");
-        scanf("%d", &numberDisk);
+        scanf("%hu", &numberDisk);
         getchar();
 
         // Nhập tên từng ổ đĩa và dung lượng đi kèm
         char nameDisk[MAX_LENGTH][MAX_LENGTH];
-        int sizeDisk[MAX_LENGTH];
+        unsigned short sizeDisk[MAX_LENGTH];
         for (int i = 0; i < numberDisk; i++)
         {
             memset(nameDisk[i], 0, MAX_LENGTH);
@@ -67,17 +67,17 @@ int main(int argc, char *argv[])
             nameDisk[i][strcspn(nameDisk[i], "\n")] = 0;
 
             printf("\t- Enter size disk %d: ", i + 1);
-            scanf("%d", &sizeDisk[i]);
+            scanf("%hu", &sizeDisk[i]);
             getchar();
         }
 
         // Đóng gói thông tin
         char buffer[MAX_LENGTH];
         memset(buffer, 0, MAX_LENGTH);
-        sprintf(buffer, "%s;%d", nameComputer, numberDisk);
+        sprintf(buffer, "%s;%hu", nameComputer, numberDisk);
         for (int i = 0; i < numberDisk; i++)
         {
-            sprintf(buffer, "%s;%s;%d", buffer, nameDisk[i], sizeDisk[i]);
+            sprintf(buffer, "%s;%s;%hu", buffer, nameDisk[i], sizeDisk[i]);
         }
 
         // Gửi thông tin đến server
@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
         }
 
         // Hỏi người dùng có muốn nhập tiếp không
+        memset(buffer, 0, MAX_LENGTH);
         printf("Do you want to continue? (y/n): ");
         fgets(buffer, sizeof(buffer), stdin);
         buffer[strcspn(buffer, "\n")] = 0;
