@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     if (argc != 4)
     {
         printf("Usage: %s <server-IP-address> <port> <file-to-trans>\n", argv[0]);
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Thiết lập thông tin địa chỉ cho socket
@@ -30,14 +30,14 @@ int main(int argc, char *argv[])
     if (client == -1)
     {
         perror("socket() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Kết nối đến server
     if (connect(client, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
     {
         perror("connect() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
     printf("Connection to %s %s port [tcp/*] succeeded!\n", argv[1], argv[2]);
 
@@ -46,22 +46,22 @@ int main(int argc, char *argv[])
     if (fp == NULL)
     {
         perror("fopen() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Đọc file và gửi dữ liệu
-    char buf[20];
-    memset(buf, 0, 20);
+    char buf[21];
+    memset(buf, 0, 21);
     while (!feof(fp))
     {
         // Đọc dữ liệu từ file
-        fgets(buf, 20, fp);
+        fgets(buf, 21, fp);
 
         // Gửi dữ liệu đến server
         if (send(client, buf, strlen(buf), 0) == -1)
         {
             perror("send() failed");
-            return 1;
+            exit(EXIT_FAILURE);
         }
     }
     fclose(fp);

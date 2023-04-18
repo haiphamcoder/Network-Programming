@@ -7,7 +7,6 @@
 #include <errno.h>
 #include <unistd.h>
 
-#define MAX_LENGTH 1024
 #define MAX_CLIENT 10
 
 int main(int argc, char *argv[])
@@ -16,7 +15,7 @@ int main(int argc, char *argv[])
     if (argc != 2)
     {
         printf("Usage: %s <port>\n", argv[0]);
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Thiết lập thông tin địa chỉ cho socket
@@ -31,57 +30,70 @@ int main(int argc, char *argv[])
     if (server == -1)
     {
         perror("socket() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Gán địa chỉ cho socket
     if (bind(server, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1)
     {
         perror("bind() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     // Lắng nghe kết nối
     if (listen(server, MAX_CLIENT) == -1)
     {
         perror("listen() failed");
-        return 1;
+        exit(EXIT_FAILURE);
     }
+    printf("Waiting for client on %s:%s\n", inet_ntoa(server_addr.sin_addr), argv[1]);
+
+    // Chấp nhận kết nối từ client
+    struct sockaddr_in client_addr;
+    memset(&client_addr, 0, sizeof(client_addr));
+    socklen_t client_addr_len = sizeof(client_addr);
+    int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_len);
+    if (client == -1)
+    {
+        perror("accept() failed");
+        exit(EXIT_FAILURE);
+    }
+    printf("Connection from %s %d port [tcp/*] succeeded!\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
     // Nhận dữ liệu từ client
-    char buf[MAX_LENGTH];
-    memset(buf, 0, MAX_LENGTH);
+    int count = 0;
+    char buf[20], receive[21];
+    memset(buf, 'x', 9);
+    memset(buf + 9, 0, 11);
     while (1)
     {
-        printf("Waiting for client on %s:%s\n", inet_ntoa(server_addr.sin_addr), argv[1]);
-
-        // Chấp nhận kết nối từ client
-        struct sockaddr_in client_addr;
-        memset(&client_addr, 0, sizeof(client_addr));
-        socklen_t client_addr_len = sizeof(client_addr);
-        int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_len);
-        if (client == -1)
-        {
-            perror("accept() failed");
-            return 1;
-        }
-
-        // Nhận dữ liệu từ client
-        int bytes_received = recv(client, buf, MAX_LENGTH, 0);
+        memset(receive, 0, 21);
+        int bytes_received = recv(client, receive, 20, 0);
+        receive[bytes_received] = '\0';
         if (bytes_received == -1)
         {
             perror("recv() failed");
-            return 1;
+            exit(EXIT_FAILURE);
         }
         else if (bytes_received == 0)
         {
-            printf("Client disconnected\n");
+            printf("Count: %d\n", count);
+            break;
         }
-
-        // In dữ liệu nhận được
-        printf("Received from %s:%d: %s\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), buf);
-        
+        strncat(buf, receive, 10);
+        if (strstr(buf, "0123456789") != NULL)
+        {
+            count++;
+        }
+        strcpy(buf, buf + 10);
+        strcat(buf, receive + 10);
+        if (strstr(buf, "0123456789") != NULL)
+        {
+            count++;
+        }
+        strcpy(buf, buf + 10);
     }
-
+    close(client);
+    close(server);
     return 0;
 }
