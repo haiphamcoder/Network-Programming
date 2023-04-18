@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
     server_addr.sin_port = htons(atoi(argv[2]));
 
     // Tạo socket
-    int client = socket(AF_INET, SOCK_STREAM, 0);
+    int client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (client == -1)
     {
         perror("socket() failed");
@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
+    printf("Data sent successfully!\n");
     fclose(fp);
     close(client);
     return 0;
