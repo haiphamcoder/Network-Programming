@@ -91,8 +91,7 @@ int main(int argc, char *argv[])
 
             // Lấy thời gian hiện tại
             time_t current_time = time(NULL);
-            char *formatted_time = ctime(&current_time);
-            formatted_time[strlen(formatted_time) - 1] = '\0';
+            struct tm *time_info = localtime(&current_time);
 
             // Ghi vào file log
             FILE *log_file = fopen(argv[2], "a");
@@ -101,8 +100,16 @@ int main(int argc, char *argv[])
                 perror("fopen() failed");
                 exit(EXIT_FAILURE);
             }
-            printf("%s %s %s\n", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
-            fprintf(log_file, "%s %s %s\n", inet_ntoa(client_addr.sin_addr), formatted_time, buf);
+            printf("%s %d-%d-%d %d:%d:%d %s\n",
+                   inet_ntoa(client_addr.sin_addr),
+                   time_info->tm_year + 1900,
+                   time_info->tm_mon, time_info->tm_mday,
+                   time_info->tm_hour, time_info->tm_min, time_info->tm_sec, buf);
+            fprintf(log_file, "%s %d-%d-%d %d:%d:%d %s\n",
+                    inet_ntoa(client_addr.sin_addr),
+                    time_info->tm_year + 1900,
+                    time_info->tm_mon, time_info->tm_mday,
+                    time_info->tm_hour, time_info->tm_min, time_info->tm_sec, buf);
             fclose(log_file);
         }
 
