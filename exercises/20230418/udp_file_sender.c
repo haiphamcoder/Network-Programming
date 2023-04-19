@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    // Khởi tạo địa chỉ server
+    // Thiết lập địa chỉ server receiver
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -34,14 +34,21 @@ int main(int argc, char *argv[])
     server_addr.sin_port = htons(atoi(argv[2]));
 
     // Mở file
-    FILE *fp = fopen(argv[3], "r");
+    FILE *fp = fopen(argv[3], "rb");
     if (fp == NULL)
     {
         perror("fopen() failed");
         exit(EXIT_FAILURE);
     }
 
-    // Đọc file và gửi
+    // Gửi tên file đến server receiver
+    if (sendto(sender, argv[3], strlen(argv[3]), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) != strlen(argv[3]))
+    {
+        perror("sendto() failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Đọc nội dung file và gửi sang server receiver
     int len = 0;
     char buf[MAX_LENGTH];
     while ((len = fread(buf, 1, MAX_LENGTH, fp)) > 0)
