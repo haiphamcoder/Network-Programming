@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
+    printf("File sent successfully.\n");
 
     // Đóng file
     fclose(fp);
