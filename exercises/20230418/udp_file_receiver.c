@@ -51,23 +51,14 @@ int main(int argc, char *argv[])
         perror("recvfrom() failed");
         exit(EXIT_FAILURE);
     }
-    filename[bytes_received] = '\0';
     strcat(filename, ".out");
-
-    // Mở file
-    FILE *fp = fopen(filename, "wb");
-    if (fp == NULL)
-    {
-        perror("fopen() failed");
-        exit(EXIT_FAILURE);
-    }
 
     // Nhận nội dung file từ client sender
     char buf[MAX_LENGTH];
     memset(buf, 0, MAX_LENGTH);
     while (1)
-    {   
-        bytes_received = recvfrom(receiver, buf, MAX_LENGTH, 0, NULL, NULL);
+    {
+        bytes_received = recvfrom(receiver, buf, MAX_LENGTH, 0, (struct sockaddr *)&client_addr, &client_addr_len);
         if (bytes_received < 0)
         {
             perror("recvfrom() failed");
@@ -77,17 +68,28 @@ int main(int argc, char *argv[])
         {
             break;
         }
-        buf[bytes_received] = '\0';
-        printf("Received: %s\n", buf);
-        fwrite(buf, 1, bytes_received, fp);
+
+        // Ghi nội dung nhận được vào file
+        FILE *fp = fopen(filename, "ab");
+        if (fp == NULL)
+        {
+            perror("fopen() failed");
+            exit(EXIT_FAILURE);
+        }
+        if (fwrite(buf, 1, bytes_received, fp) != bytes_received)
+        {
+            perror("fwrite() failed");
+            exit(EXIT_FAILURE);
+        }
+        fclose(fp);
     }
-    fclose(fp);
 
     // Đóng socket
     close(receiver);
 
     // Thông báo thành công
-    printf("File received successfully!\n");
+    printf("File received from %s:%d successfully!\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+    printf("File %s saved successfully!\n", filename);
 
     return 0;
 }

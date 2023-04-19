@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define MAX_LENGTH 1024
+#define MAX_LENGTH 20
 
 int main(int argc, char *argv[])
 {
@@ -49,18 +49,21 @@ int main(int argc, char *argv[])
     }
 
     // Đọc nội dung file và gửi sang server receiver
-    int len = 0;
-    char buf[MAX_LENGTH];
-    while(feof(fp) == 0)
+    char buf[MAX_LENGTH + 1];
+    memset(buf, 0, MAX_LENGTH + 1);
+    while (fgets(buf, MAX_LENGTH + 1, fp) != NULL)
     {
-        len = fread(buf, 1, MAX_LENGTH, fp);
-        if (sendto(sender, buf, len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) != len)
+        if (sendto(sender, buf, strlen(buf), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) != strlen(buf))
         {
             perror("sendto() failed");
             exit(EXIT_FAILURE);
         }
+        memset(buf, 0, MAX_LENGTH + 1);
     }
-    printf("File sent successfully.\n");
+    sendto(sender, NULL, 0, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+    // Thông báo gửi file thành công
+    printf("Sent file %s to %s:%d successfully!\n", argv[3], argv[1], atoi(argv[2]));
 
     // Đóng file
     fclose(fp);
