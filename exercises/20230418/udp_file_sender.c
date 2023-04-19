@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     }
 
     // Tạo socket
-    int sender = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int sender = socket(AF_INET, SOCK_DGRAM, 0);
     if (sender < 0)
     {
         perror("socket() failed");
@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
     // Đọc nội dung file và gửi sang server receiver
     int len = 0;
     char buf[MAX_LENGTH];
-    while ((len = fread(buf, 1, MAX_LENGTH, fp)) > 0)
+    while(feof(fp) == 0)
     {
+        len = fread(buf, 1, MAX_LENGTH, fp);
         if (sendto(sender, buf, len, 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) != len)
         {
             perror("sendto() failed");
