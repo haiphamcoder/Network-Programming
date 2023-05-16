@@ -1,0 +1,7 @@
+total 84
+-rwxrwxr-x 1 haiqqez haiqqez 28352 Thg 5  12 23:12 chat_server
+-rw-rw-r-- 1 haiqqez haiqqez 11133 Thg 5  16 13:20 chat_server.c
+-rw-rw-r-- 1 haiqqez haiqqez    55 Thg 5  16 14:21 database.txt
+-rw-rw-r-- 1 haiqqez haiqqez     0 Thg 5  16 14:25 out.txt
+-rwxrwxr-x 1 haiqqez haiqqez 28544 Thg 5  16 14:21 telnet_server
+-rw-rw-r-- 1 haiqqez haiqqez 11487 Thg 5  16 14:14 telnet_server.c
