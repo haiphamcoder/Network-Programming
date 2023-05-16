@@ -15,6 +15,7 @@
 **Bài 4:** Viết chương trình sv_server, nhận dữ liệu từ sv_client, in ra màn hình và đồng thời ghi vào file sv_log.txt. Dữ liệu được ghi trên một dòng với mỗi client, kèm theo địa chỉ IP và thời gian client đã gửi. Tham số cổng và tên file log được nhập từ tham số dòng lệnh.Ví dụ dữ liệu trong file log:
 
 > 127.0.0.1 2023-04-10 09:00:00 20201234 Nguyen Van A 2002-04-10 3.99
+>
 > 127.0.0.1 2023-04-10 09:00:10 20205678 Tran Van B 2002-08-18 3.50
 
 ## [20230418: Tuần 2](https://github.com/haiphamcoder/Network-Programming/tree/main/exercises/20230418)
