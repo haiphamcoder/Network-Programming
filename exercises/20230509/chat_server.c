@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
             }
             else
             {
-                printf("Maxium clients reached!\n");
+                printf("Maximum clients reached!\n");
                 printf("Client %d disconnected: too many clients\n", client);
                 close(client);
             }
