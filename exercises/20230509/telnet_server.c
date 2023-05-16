@@ -5,6 +5,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
+#include <unistd.h>
 
 #define MAX_CLIENTS 10
 #define MAX_MSG_LEN 1024
@@ -70,15 +71,29 @@ void handle_command(int sockfd, char *command)
         char line[MAX_MSG_LEN];
         while (fgets(line, MAX_MSG_LEN, fp) != NULL)
         {
-            send(sockfd, line, strlen(line), 0);
+            if (send(sockfd, line, strlen(line), 0) < 0)
+            {
+                perror("send() failed");
+                continue;
+            }
+        }
+        char *msg = "\nEnter your command: ";
+        if (send(sockfd, msg, strlen(msg), 0) < 0)
+        {
+            perror("send() failed");
+            return;
         }
         fclose(fp);
     }
     else
     {
         // Gửi thông báo lỗi về client
-        char *msg = "Command not found\n";
-        send(sockfd, msg, strlen(msg), 0);
+        char *msg = "Command not found!\nEnter another command: ";
+        if (send(sockfd, msg, strlen(msg), 0) < 0)
+        {
+            perror("send() failed");
+            return;
+        }
     }
 }
 
@@ -104,7 +119,7 @@ int main(int argc, char *argv[])
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port - htons(atoi(argv[1]));
+    server_addr.sin_port = htons(atoi(argv[1]));
 
     // Gán địa chỉ server vào socket
     if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
@@ -178,7 +193,7 @@ int main(int argc, char *argv[])
                 strcpy(clients[n_clients].username, "");
                 strcpy(clients[n_clients].password, "");
                 n_clients++;
-                printf("Client connectec from %s:%s\n",
+                printf("Client connectec from %s:%d\n",
                        inet_ntoa(client_addr.sin_addr),
                        ntohs(client_addr.sin_port));
 
@@ -250,7 +265,7 @@ int main(int argc, char *argv[])
                                 strcpy(clients[i].password, password);
 
                                 // Gửi thông báo đến client
-                                char *msg = "Login successful\n";
+                                char *msg = "Login successful\nEnter your command: ";
                                 if (send(clients[i].sockfd, msg, strlen(msg), 0) < 0)
                                 {
                                     perror("send() failed");
@@ -270,7 +285,7 @@ int main(int argc, char *argv[])
                             else
                             {
                                 // Gửi thông báo đến client
-                                char *msg = "Server error\n";
+                                char *msg = "Server error\nDatabase file not found!\nPlease enter again your \"username password\": ";
                                 send(clients[i].sockfd, msg, strlen(msg), 0);
                             }
                         }
@@ -284,7 +299,30 @@ int main(int argc, char *argv[])
                     else
                     {
                         // Xử lý lệnh
-                        handle_command(clients[i].sockfd, msg);
+                        if (strcmp(msg, "quit") == 0 || strcmp(msg, "exit") == 0)
+                        {
+                            // Gửi thông báo đến client
+                            char *msg = "Goodbye!\n";
+                            if (send(clients[i].sockfd, msg, strlen(msg), 0) < 0)
+                            {
+                                perror("send() failed");
+                                continue;
+                            }
+
+                            // Đóng kết nối
+                            close(clients[i].sockfd);
+
+                            // Xóa client khỏi mảng client
+                            clients[i] = clients[n_clients - 1];
+                            n_clients--;
+
+                            // Xóa socket client khỏi mảng file descriptor
+                            FD_CLR(clients[i].sockfd, &readfds);
+                        }
+                        else
+                        {
+                            handle_command(clients[i].sockfd, msg);
+                        }
                     }
                 }
             }
