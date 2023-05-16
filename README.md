@@ -44,3 +44,35 @@
 4. Tại một thời điểm có thể có nhiều udp_file_sender cùng chạy.Đểm minh họa tình huống này, có thể dùng lệnh usleep() để tạm dừng chương trình trong một khoảng thời gian nhằm giảm tốc độ gửi file.
 
     Ứng dụng udp_file_receiver có thể nhận nội dung các file từ nhiều udp_file_sender khác nhau. Ứng dụng cần phân biệt nội dung file được gửi từ sender nào để thực hiện việc ghép nội dung file được chính xác.
+
+## [20230425: Tuần 3](https://github.com/haiphamcoder/Network-Programming/tree/main/exercises/20230425)
+
+1. Sử dụng hàm select()/poll(), viết chương  trình chat_server thực hiện các chức năng sau:
+
+    Nhận kết nối từ các client, và vào hỏi tên client cho đến khi client gửi đúng cú pháp:“client_id: client_name” trong đó client_name là tên của client, xâu ký tự viết liền.
+
+    Sau đó nhận dữ liệu từ một client và gửi dữ liệu đó đến các client còn lại, ví dụ:
+
+    client có id “abc” gửi “xin chao” thì các client khác sẽ nhận được: “abc: xin chao” hoặc có thể thêm  thời gian vào trước ví dụ:
+
+        2023/05/06 11:00:00PM abc: xin chao
+
+## [20230509: Tuần 4](https://github.com/haiphamcoder/Network-Programming/tree/main/exercises/20230509)
+
+1. Sử dụng hàm select()/poll(), viết chương  trình chat_server thực hiện các chức năng sau:
+
+    Nhận kết nối từ các client, và vào hỏi tên client chođến khi client gửi đúng cú pháp:“client_id: client_name”, trong đó client_name là tên của client, xâu ký tự viết liền.
+
+    Sau đó nhận dữ liệu từ một client và gửi dữ liệu đóđến các client còn lại, ví dụ: client có id “abc” gửi “xin chao” thì các client khác sẽ nhận được: “abc: xin chao”hoặc có thể thêm thời gian vào trước, ví  dụ: “2023/05/06 11:00:00PM abc: xin chao”.
+
+2. Sử dụng hàm select()/poll(), viết chương trình telnet_server thực hiện các chức năng sau:
+
+    Khi đã kết nối với 1 client nào đó, yêu cầu client gửi user và pass, so sánh với file cơ sở dữ liệu là một file text, mỗi dòng chứa một cặp user + pass ví dụ:
+
+        admin admin
+        guest nopass
+        ...
+
+    Nếu so sánh sai, không tìm thấy tài khoản thì báo lỗi đăng nhập. Nếu đúng thì đợi lệnh từ client, thực hiện lệnh và trả kết quả cho client. Dùng hàm system(“dir > out.txt”) để thực hiện lệnh.
+
+    dir là ví dụ lệnh dir mà client gửi. > out.txt để định hướng lại dữ liệu ra từ lệnh dir, khi đó kết quả lệnh dir sẽ được ghi vào file văn bản.
