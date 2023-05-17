@@ -5,8 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <poll.h>
 
-#define MAX_CLIENT 10
+#define MAX_CLIENT 64
 #define MAX_MSG_LEN 1024
 
 typedef struct client
@@ -57,16 +58,17 @@ int main(int argc, char *argv[])
 
     // Khởi tạo mảng client
     client_t clients[MAX_CLIENT];
+    memset(clients, 0, sizeof(clients));
     int n_client = 0;
 
     while (1)
     {
         // Khởi tạo mảng file descriptor
-        fd_set readfds;
-        FD_ZERO(&readfds);
-
-        // Thêm socket server vào mảng file descriptor
-        FD_SET(sockfd, &readfds);
+        struct pollfd fds[MAX_CLIENT + 1];
+        memset(fds, 0, sizeof(fds));
+        fds[0].fd = sockfd;
+        fds[0].events = POLLIN;
+        int nfds = 1;
 
         // Thêm các socket client vào mảng file descriptor
         if (n_client == 0)
@@ -78,19 +80,27 @@ int main(int argc, char *argv[])
         {
             for (int i = 0; i < n_client; i++)
             {
-                FD_SET(clients[i].sockfd, &readfds);
+                fds[nfds].fd = clients[i].sockfd;
+                fds[nfds].events = POLLIN;
+                nfds++;
             }
         }
 
-        // Chờ các kết nối mới hoặc dữ liệu từ các client
-        if (select(FD_SETSIZE, &readfds, NULL, NULL, NULL) < 0)
+        // Chờ sự kiện từ các socket
+        int ret = poll(fds, nfds, -1);
+        if (ret < 0)
         {
-            perror("select() failed");
+            perror("poll() failed");
+            continue;
+        }
+        if (ret == 0)
+        {
+            printf("poll() timed out\n");
             continue;
         }
 
         // Kiểm tra xem server có sẵn sàng nhận kết nối mới không
-        if (FD_ISSET(sockfd, &readfds))
+        if (fds[0].revents & POLLIN)
         {
             // Chấp nhận kết nối
             struct sockaddr_in client_addr;
@@ -125,7 +135,7 @@ int main(int argc, char *argv[])
             else
             {
                 printf("Maximum clients reached!\n");
-                printf("Client %d disconnected: too many clients\n", client);
+                printf("Client from %s:%d disconnected: too many clients\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
                 close(client);
             }
         }
@@ -133,7 +143,7 @@ int main(int argc, char *argv[])
         // Kiểm tra xem có dữ liệu từ các client không
         for (int i = 0; i < n_client; i++)
         {
-            if (FD_ISSET(clients[i].sockfd, &readfds))
+            if (fds[i + 1].revents & (POLLIN | POLLERR))
             {
                 // Nhận dữ liệu từ client
                 char msg[MAX_MSG_LEN];
@@ -147,6 +157,23 @@ int main(int argc, char *argv[])
                 else if (msg_len == 0)
                 {
                     printf("Client from %s:%d disconnected\n", inet_ntoa(clients[i].addr.sin_addr), ntohs(clients[i].addr.sin_port));
+
+                    // Gửi thông báo cho các client khác biết client này đã ngắt kết nối
+                    char notification[MAX_MSG_LEN];
+                    sprintf(notification, "Client %s disconnected\n", clients[i].id);
+                    for (int j = 0; j < n_client; j++)
+                    {
+                        if (j != i && strcmp(clients[j].id, "") != 0)
+                        {
+                            if (send(clients[j].sockfd, notification, strlen(notification), 0) < 0)
+                            {
+                                perror("send() failed");
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Đóng socket client
                     close(clients[i].sockfd);
 
                     // Xóa client khỏi mảng client
@@ -154,8 +181,9 @@ int main(int argc, char *argv[])
                     n_client--;
 
                     // Xóa socket client khỏi mảng file descriptor
-                    FD_CLR(clients[i].sockfd, &readfds);
-
+                    fds[i + 1] = fds[nfds - 1];
+                    nfds--;
+                    i--;
                     continue;
                 }
                 else
@@ -185,8 +213,9 @@ int main(int argc, char *argv[])
                             {
                                 strcpy(clients[i].id, id);
                                 strcpy(clients[i].name, name);
-                                printf("Client %d registered as %s:%s\n",
-                                       clients[i].sockfd, clients[i].id, clients[i].name);
+                                printf("Client %s:%d registered as %s:%s\n",
+                                       inet_ntoa(clients[i].addr.sin_addr), ntohs(clients[i].addr.sin_port),
+                                       clients[i].id, clients[i].name);
                                 char *msg = "Registered successfully!\n";
                                 if (send(clients[i].sockfd, msg, strlen(msg), 0) < 0)
                                 {
@@ -239,7 +268,7 @@ int main(int argc, char *argv[])
                         char time_str[22];
                         memset(time_str, 0, 22);
                         strftime(time_str, MAX_MSG_LEN, "%Y/%m/%d %I:%M:%S%p", t);
-                        char *msg_to_send;
+                        char msg_to_send[MAX_MSG_LEN + 44];
                         sprintf(msg_to_send, "%s %s: %s\n", time_str, clients[i].id, msg);
 
                         if (ret == 2)
@@ -274,7 +303,7 @@ int main(int argc, char *argv[])
                             // Gửi tin nhắn đến mọi người
                             for (int j = 0; j < n_client; j++)
                             {
-                                if (clients[j].sockfd != clients[i].sockfd)
+                                if (j != i && strcmp(clients[j].id, "") != 0)
                                 {
                                     if (send(clients[j].sockfd, msg_to_send, strlen(msg_to_send), 0) < 0)
                                     {
