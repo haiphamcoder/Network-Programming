@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
-#include <sys/select.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
