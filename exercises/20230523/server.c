@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
                             }
                         }
 
-                        // Viết hoa chữ cái đầu tiên của mỗi từ
+                        // Viết hoa chữ cái đầu tiên của mỗi từ và viết thường các chữ cái còn lại
                         for (int i = 0; i < strlen(msg); i++)
                         {
                             if (i == 0 || msg[i - 1] == ' ')
@@ -235,6 +235,13 @@ int main(int argc, char *argv[])
                                 if (msg[i] >= 'a' && msg[i] <= 'z')
                                 {
                                     msg[i] -= 32;
+                                }
+                            }
+                            else
+                            {
+                                if (msg[i] >= 'A' && msg[i] <= 'Z')
+                                {
+                                    msg[i] += 32;
                                 }
                             }
                         }
