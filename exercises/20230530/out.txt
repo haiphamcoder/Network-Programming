@@ -1,2 +1,0 @@
-database.txt   out.txt	      telnet_server.c
-http_server.c  telnet_server  time_server.c

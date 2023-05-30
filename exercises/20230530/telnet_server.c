@@ -106,6 +106,9 @@ void handle_command(int sockfd, char *command)
 
         // Đóng file
         fclose(fp);
+
+        // Xóa file
+        remove("out.txt");
     }
     else
     {
