@@ -1,6 +1,2 @@
-database.txt
-http_server.c
-out.txt
-telnet_server
-telnet_server.c
-time_server.c
+database.txt   out.txt	      telnet_server.c
+http_server.c  telnet_server  time_server.c
