@@ -83,3 +83,7 @@ Khi đã kết nối với 1 client nào đó, yêu cầu client gửi user và 
 Nếu so sánh sai, không tìm thấy tài khoản thì báo lỗi đăng nhập. Nếu đúng thì đợi lệnh từ client, thực hiện lệnh và trả kết quả cho client. Dùng hàm system(“dir > out.txt”) để thực hiện lệnh.
 
 dir là ví dụ lệnh dir mà client gửi. > out.txt để định hướng lại dữ liệu ra từ lệnh dir, khi đó kết quả lệnh dir sẽ được ghi vào file văn bản.
+
+## [20230523]
+
+## [20230530]
