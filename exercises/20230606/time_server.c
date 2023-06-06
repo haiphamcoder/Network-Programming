@@ -10,7 +10,10 @@
 #define BUF_SIZE 1024
 #define MAX_CLIENT 10
 
-struct sockaddr_in client_addr;
+typedef struct client{
+    int sockfd;
+    struct sockaddr_in addr;
+} client_t;
 
 void format_time(char *, const char *);
 void *client_proc(void *);
@@ -60,6 +63,7 @@ int main(int argc, char *argv[])
                ntohs(server_addr.sin_port));
 
         // Chấp nhận kết nối
+        struct sockaddr_in client_addr;
         memset(&client_addr, 0, sizeof(client_addr));
         socklen_t client_addr_len = sizeof(client_addr);
         int client = accept(server, (struct sockaddr *)&client_addr, &client_addr_len);
@@ -72,9 +76,13 @@ int main(int argc, char *argv[])
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
+        client_t client_info;
+        client_info.sockfd = client;
+        client_info.addr = client_addr;
+
         // Tạo thread để xử lý client
         pthread_t thread_id;
-        if (pthread_create(&thread_id, NULL, client_proc, &client) != 0)
+        if (pthread_create(&thread_id, NULL, client_proc, &client_info) != 0)
         {
             perror("pthread_create() failed");
             exit(EXIT_FAILURE);
@@ -116,14 +124,14 @@ void format_time(char buf[], const char *format)
 
 void *client_proc(void *param)
 {
-    int client = *(int *)param;
+    client_t client = *(client_t *)param;
 
     // Xử lý client
     while (1)
     {
         // Gửi yêu cầu đến client
         char *msg = "Enter command: ";
-        if (send(client, msg, strlen(msg), 0) < 0)
+        if (send(client.sockfd, msg, strlen(msg), 0) < 0)
         {
             perror("send() failed");
             break;
@@ -132,7 +140,7 @@ void *client_proc(void *param)
         // Nhận yêu cầu từ client
         char buf[BUF_SIZE];
         memset(buf, 0, BUF_SIZE);
-        int len = recv(client, buf, BUF_SIZE, 0);
+        int len = recv(client.sockfd, buf, BUF_SIZE, 0);
         if (len < 0)
         {
             perror("recv() failed");
@@ -141,9 +149,9 @@ void *client_proc(void *param)
         else if (len == 0)
         {
             printf("Client from %s:%d disconnected\n",
-                   inet_ntoa(client_addr.sin_addr),
-                   ntohs(client_addr.sin_port));
-            close(client);
+                   inet_ntoa(client.addr.sin_addr),
+                   ntohs(client.addr.sin_port));
+            close(client.sockfd);
             break;
         }
         else
@@ -155,16 +163,16 @@ void *client_proc(void *param)
             if (strcmp(buf, "exit") == 0 || strcmp(buf, "quit") == 0)
             {
                 char *msg = "Goodbye\n";
-                if (send(client, msg, strlen(msg), 0) < 0)
+                if (send(client.sockfd, msg, strlen(msg), 0) < 0)
                 {
                     perror("send() failed");
                     break;
                 }
 
                 printf("Client from %s:%d disconnected\n",
-                       inet_ntoa(client_addr.sin_addr),
-                       ntohs(client_addr.sin_port));
-                close(client);
+                       inet_ntoa(client.addr.sin_addr),
+                       ntohs(client.addr.sin_port));
+                close(client.sockfd);
                 break;
             }
 
@@ -179,7 +187,7 @@ void *client_proc(void *param)
                 {
                     memset(buf, 0, BUF_SIZE);
                     format_time(buf, format);
-                    if (send(client, buf, strlen(buf), 0) < 0)
+                    if (send(client.sockfd, buf, strlen(buf), 0) < 0)
                     {
                         perror("send() failed");
                         break;
@@ -188,7 +196,7 @@ void *client_proc(void *param)
                 else
                 {
                     char *msg = "Invalid command\n";
-                    if (send(client, msg, strlen(msg), 0) < 0)
+                    if (send(client.sockfd, msg, strlen(msg), 0) < 0)
                     {
                         perror("send() failed");
                         break;
@@ -199,7 +207,7 @@ void *client_proc(void *param)
             else
             {
                 char *msg = "Invalid command\n";
-                if (send(client, msg, strlen(msg), 0) < 0)
+                if (send(client.sockfd, msg, strlen(msg), 0) < 0)
                 {
                     perror("send() failed");
                     break;
