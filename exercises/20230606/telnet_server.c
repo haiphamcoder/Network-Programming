@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define MAX_CLIENT 10
+#define MAX_CLIENTS 10
 #define BUFFER_SIZE 1024
 #define MAX_USERNAME_LEN 32
 #define MAX_PASSWORD_LEN 32
@@ -19,6 +19,9 @@ typedef struct client
     char password[MAX_PASSWORD_LEN];
 } client_t;
 
+client_t clients[MAX_CLIENTS];
+int client_count = 0;
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 struct sockaddr_in server_addr;
 
 int authenticate_user(char *, char *);
@@ -56,18 +59,19 @@ int main(int argc, char *argv[])
     }
 
     // Chuyển socket sang trạng thái lắng nghe
-    if (listen(server, MAX_CLIENT) < 0)
+    if (listen(server, MAX_CLIENTS) < 0)
     {
         perror("listen() failed");
         exit(EXIT_FAILURE);
     }
 
-    while (1)
-    {
-        printf("Waiting for new client on %s:%d...\n",
+    printf("Waiting for new client on %s:%d...\n",
                inet_ntoa(server_addr.sin_addr),
                ntohs(server_addr.sin_port));
 
+
+    while (1)
+    {
         // Chấp nhận kết nối từ client
         struct sockaddr_in client_addr;
         memset(&client_addr, 0, sizeof(client_addr));
@@ -78,20 +82,32 @@ int main(int argc, char *argv[])
             perror("accept() failed");
             exit(EXIT_FAILURE);
         }
+        if (client_count == MAX_CLIENTS)
+        {
+            char *msg = "Server is full!\nPlease try again later.\n";
+            if (send(client, msg, strlen(msg), 0) < 0)
+            {
+                perror("send() failed");
+            }
+            close(client);
+            continue;
+        }
         printf("Client from %s:%d connected\n",
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        // Tạo client_info để lưu thông tin client
-        client_t client_info;
-        client_info.sockfd = client;
-        client_info.addr = client_addr;
-        strcpy(client_info.username, "");
-        strcpy(client_info.password, "");
+        pthread_mutex_lock(&clients_mutex);
+        clients[client_count].sockfd = client;
+        clients[client_count].addr = client_addr;
+        strcpy(clients[client_count].username, "");
+        strcpy(clients[client_count].password, "");
+        client_count++;
+        pthread_mutex_unlock(&clients_mutex);
 
         // Tạo thread để xử lý client
         pthread_t thread_id;
-        pthread_create(&thread_id, NULL, client_proc, (void *)&client_info);
+        pthread_create(&thread_id, NULL, client_proc, (void *)&clients[client_count - 1]);
+        pthread_detach(thread_id);
     }
 
     // Đóng server socket
@@ -203,14 +219,29 @@ void *client_proc(void *param)
         if (bytes_received < 0)
         {
             perror("recv() failed");
-            break;
+            return NULL;
         }
         else if (bytes_received == 0)
         {
             printf("Client from %s:%d disconnected\n",
                    inet_ntoa(client_info->addr.sin_addr),
                    ntohs(client_info->addr.sin_port));
-            close(client_info->sockfd);
+            for (int i = 0; i < client_count; i++)
+            {
+                if (client_info->sockfd == clients[i].sockfd)
+                {
+                    pthread_mutex_lock(&clients_mutex);
+                    clients[i] = clients[client_count - 1];
+                    client_count--;
+                    if (client_count == 0)
+                    {
+                        printf("Waiting for clients on %s:%d...\n",
+                               inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+                    }
+                    pthread_mutex_unlock(&clients_mutex);
+                    break;
+                }
+            }
             return NULL;
         }
         else
@@ -296,14 +327,29 @@ void *client_proc(void *param)
         if (bytes_received < 0)
         {
             perror("recv() failed");
-            break;
+            return NULL;
         }
         else if (bytes_received == 0)
         {
             printf("Client from %s:%d disconnected\n",
                    inet_ntoa(client_info->addr.sin_addr),
                    ntohs(client_info->addr.sin_port));
-            close(client_info->sockfd);
+            for (int i = 0; i < client_count; i++)
+            {
+                if (client_info->sockfd == clients[i].sockfd)
+                {
+                    pthread_mutex_lock(&clients_mutex);
+                    clients[i] = clients[client_count - 1];
+                    client_count--;
+                    if (client_count == 0)
+                    {
+                        printf("Waiting for clients on %s:%d...\n",
+                               inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+                    }
+                    pthread_mutex_unlock(&clients_mutex);
+                    break;
+                }
+            }
             break;
         }
         else
@@ -323,7 +369,22 @@ void *client_proc(void *param)
                 printf("Client from %s:%d disconnected\n",
                        inet_ntoa(client_info->addr.sin_addr),
                        ntohs(client_info->addr.sin_port));
-                close(client_info->sockfd);
+                for (int i = 0; i < client_count; i++)
+                {
+                    if (client_info->sockfd == clients[i].sockfd)
+                    {
+                        pthread_mutex_lock(&clients_mutex);
+                        clients[i] = clients[client_count - 1];
+                        client_count--;
+                        if (client_count == 0)
+                        {
+                            printf("Waiting for clients on %s:%d...\n",
+                                   inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+                        }
+                        pthread_mutex_unlock(&clients_mutex);
+                        break;
+                    }
+                }
                 break;
             }
             else
