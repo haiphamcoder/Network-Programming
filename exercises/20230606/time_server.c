@@ -80,7 +80,6 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
         pthread_detach(thread_id);
-
     }
 
     // Đóng socket
@@ -155,6 +154,13 @@ void *client_proc(void *param)
             // Thoát nếu client gửi exit hoặc quit
             if (strcmp(buf, "exit") == 0 || strcmp(buf, "quit") == 0)
             {
+                char *msg = "Goodbye\n";
+                if (send(client, msg, strlen(msg), 0) < 0)
+                {
+                    perror("send() failed");
+                    break;
+                }
+
                 printf("Client from %s:%d disconnected\n",
                        inet_ntoa(client_addr.sin_addr),
                        ntohs(client_addr.sin_port));
