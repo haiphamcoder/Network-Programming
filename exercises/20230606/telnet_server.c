@@ -62,12 +62,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    printf("Waiting for new client on %s:%d...\n",
-           inet_ntoa(server_addr.sin_addr),
-           ntohs(server_addr.sin_port));
-
     while (1)
     {
+        printf("Waiting for new client on %s:%d...\n",
+               inet_ntoa(server_addr.sin_addr),
+               ntohs(server_addr.sin_port));
+
         // Chấp nhận kết nối từ client
         struct sockaddr_in client_addr;
         memset(&client_addr, 0, sizeof(client_addr));
