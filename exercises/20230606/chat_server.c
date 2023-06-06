@@ -103,11 +103,12 @@ int main(int argc, char *argv[])
 
         // Tạo thread để xử lý client
         pthread_t thread_id;
-        if (pthread_create(&thread_id, NULL, client_proc, (void *)&clients[client_count - 1]))
+        if (pthread_create(&thread_id, NULL, client_proc, (void *)&clients[client_count - 1]) != 0)
         {
             perror("pthread_create() failed");
             exit(EXIT_FAILURE);
         }
+        pthread_detach(thread_id);
     }
 
     close(server_sock);
@@ -156,7 +157,7 @@ void *client_proc(void *param)
                     break;
                 }
             }
-            break;
+            return NULL;
         }
         else
         {
