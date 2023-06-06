@@ -8,12 +8,18 @@
 #include <pthread.h>
 
 #define BUF_SIZE 1024
-#define MAX_CLIENT 10
+#define MAX_CLIENTS 10
 
-typedef struct client{
+typedef struct client
+{
     int sockfd;
     struct sockaddr_in addr;
 } client_t;
+
+client_t clients[MAX_CLIENTS];
+int client_count = 0;
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
+struct sockaddr_in server_addr;
 
 void format_time(char *, const char *);
 void *client_proc(void *);
@@ -36,7 +42,6 @@ int main(int argc, char *argv[])
     }
 
     // Thiết lập địa chỉ server
-    struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET; // IPv4
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -50,18 +55,18 @@ int main(int argc, char *argv[])
     }
 
     // Lắng nghe kết nối
-    if (listen(server, MAX_CLIENT) < 0)
+    if (listen(server, MAX_CLIENTS) < 0)
     {
         perror("listen() failed");
         exit(EXIT_FAILURE);
     }
 
+    printf("Waiting for new client on %s:%d\n",
+           inet_ntoa(server_addr.sin_addr),
+           ntohs(server_addr.sin_port));
+
     while (1)
     {
-        printf("Waiting for new client on %s:%d\n",
-               inet_ntoa(server_addr.sin_addr),
-               ntohs(server_addr.sin_port));
-
         // Chấp nhận kết nối
         struct sockaddr_in client_addr;
         memset(&client_addr, 0, sizeof(client_addr));
@@ -72,17 +77,31 @@ int main(int argc, char *argv[])
             perror("accept() failed");
             exit(EXIT_FAILURE);
         }
+
+        if (client_count == MAX_CLIENTS)
+        {
+            char *msg = "Server is full!\nPlease try again later.\n";
+            if (send(client, msg, strlen(msg), 0) < 0)
+            {
+                perror("send() failed");
+            }
+            close(client);
+            continue;
+        }
+
         printf("New client connected from %s:%d\n",
                inet_ntoa(client_addr.sin_addr),
                ntohs(client_addr.sin_port));
 
-        client_t client_info;
-        client_info.sockfd = client;
-        client_info.addr = client_addr;
+        pthread_mutex_lock(&clients_mutex);
+        clients[client_count].sockfd = client;
+        clients[client_count].addr = client_addr;
+        client_count++;
+        pthread_mutex_unlock(&clients_mutex);
 
         // Tạo thread để xử lý client
         pthread_t thread_id;
-        if (pthread_create(&thread_id, NULL, client_proc, &client_info) != 0)
+        if (pthread_create(&thread_id, NULL, client_proc, (void *)&clients[client_count - 1]) != 0)
         {
             perror("pthread_create() failed");
             exit(EXIT_FAILURE);
@@ -151,7 +170,23 @@ void *client_proc(void *param)
             printf("Client from %s:%d disconnected\n",
                    inet_ntoa(client.addr.sin_addr),
                    ntohs(client.addr.sin_port));
-            close(client.sockfd);
+            for (int i = 0; i < client_count; i++)
+            {
+                if (client.sockfd == clients[i].sockfd)
+                {
+                    pthread_mutex_lock(&clients_mutex);
+                    clients[i] = clients[client_count - 1];
+                    client_count--;
+                    if (client_count == 0)
+                    {
+                        printf("Waiting for clients on %s:%d...\n",
+                               inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+                    }
+                    pthread_mutex_unlock(&clients_mutex);
+                    close(client.sockfd);
+                    break;
+                }
+            }
             break;
         }
         else
@@ -172,7 +207,23 @@ void *client_proc(void *param)
                 printf("Client from %s:%d disconnected\n",
                        inet_ntoa(client.addr.sin_addr),
                        ntohs(client.addr.sin_port));
-                close(client.sockfd);
+                for (int i = 0; i < client_count; i++)
+                {
+                    if (client.sockfd == clients[i].sockfd)
+                    {
+                        pthread_mutex_lock(&clients_mutex);
+                        clients[i] = clients[client_count - 1];
+                        client_count--;
+                        if (client_count == 0)
+                        {
+                            printf("Waiting for clients on %s:%d...\n",
+                                   inet_ntoa(server_addr.sin_addr), ntohs(server_addr.sin_port));
+                        }
+                        pthread_mutex_unlock(&clients_mutex);
+                        close(client.sockfd);
+                        break;
+                    }
+                }
                 break;
             }
 
