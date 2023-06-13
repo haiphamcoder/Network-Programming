@@ -11,6 +11,7 @@
 #define DEFAULT_PORT 8080
 #define MAX_FILES 100
 #define MAX_CLIENTS 10
+#define DT_DIR 4
 
 void send_file_list(int client_socket);
 void send_file_content(int client_socket, const char *filename);
