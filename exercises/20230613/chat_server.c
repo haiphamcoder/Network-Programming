@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-#define MAX_CLIENTS 2
+#define MAX_CLIENTS 10
 
 typedef struct
 {
@@ -145,9 +145,9 @@ int main(int argc, char *argv[])
             new_pair->partner_socket = -1;
             clients[available_index] = new_pair;
 
-            printf("Client added to queue. Number of clients in queue: %d\n", available_index + 1);
+            printf("Client added to queue. Number of clients in queue: %d\n", available_index % 2 + 1);
 
-            if (available_index == MAX_CLIENTS - 1)
+            if (available_index % 2 != 0)
             {
                 // Nếu đủ 2 client trong hàng đợi, ghép cặp và tạo luồng xử lý riêng
                 int partner_index = available_index - 1;
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
                 pthread_create(&thread, NULL, client_handler, (void *)clients[partner_index]);
                 pthread_detach(thread);
 
-                printf("Client pair created\n");
+                printf("Client pair created. Number of clients in queue: %d\n", available_index % 2 - 1);
             }
         }
 
