@@ -16,6 +16,7 @@ typedef struct
     struct sockaddr_in address;
     char nickname[50];
     bool is_logged_in;
+    pthread_t *tid;
 } Client;
 
 typedef struct
@@ -221,7 +222,9 @@ void *client_handler(void *arg)
                             }
                         }
                         send_response(client_socket, OK);
-                        close(room.clients[i]->socket);
+                        
+
+                        free(room.clients[i]);
 
                         for (int j = i; j < room.num_clients - 1; j++)
                         {
@@ -413,7 +416,7 @@ int main(int argc, char *argv[])
             client->address = client_address;
             strcpy(client->nickname, "");
             client->is_logged_in = false;
-            pthread_create(&tid, NULL, client_handler, (void *)client);
+            pthread_create(client->tid, NULL, client_handler, (void *)client);
         }
     }
 
