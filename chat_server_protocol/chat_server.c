@@ -289,7 +289,7 @@ void *client_handler(void *arg)
                 }
             }
 
-            if (room.num_clients > 0)
+            if (room.num_clients > 0 && client == room.owner)
             {
                 room.owner = room.clients[0];
                 memset(response, 0, BUFFER_SIZE);
