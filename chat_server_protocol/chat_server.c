@@ -220,11 +220,15 @@ void *client_handler(void *arg)
                                 }
                             }
                         }
+                        send_response(client_socket, OK);
+                        close(room.clients[i]->socket);
+
                         for (int j = i; j < room.num_clients - 1; j++)
                         {
                             room.clients[j] = room.clients[j + 1];
                         }
                         room.num_clients--;
+
                         pthread_mutex_unlock(&room_mutex);
                         break;
                     }
