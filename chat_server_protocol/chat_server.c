@@ -194,6 +194,51 @@ void *client_handler(void *arg)
                 send_response(client_socket, ALREADY_LOGGED_IN);
             }
         }
+        else if (strcmp(command, "KICK") == 0 && ret == 2)
+        {
+            if (client == room.owner)
+            {
+                bool is_kicked = false;
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (strcmp(room.clients[i]->nickname, message) == 0)
+                    {
+                        is_kicked = true;
+                        char response[BUFFER_SIZE + 55];
+                        memset(response, 0, BUFFER_SIZE + 55);
+                        sprintf(response, "KICK %s\n", message);
+
+                        pthread_mutex_lock(&room_mutex);
+                        for (int i = 0; i < room.num_clients; i++)
+                        {
+                            if (room.clients[i] != client)
+                            {
+                                if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                                {
+                                    perror("send() error");
+                                    exit(EXIT_FAILURE);
+                                }
+                            }
+                        }
+                        for (int j = i; j < room.num_clients - 1; j++)
+                        {
+                            room.clients[j] = room.clients[j + 1];
+                        }
+                        room.num_clients--;
+                        pthread_mutex_unlock(&room_mutex);
+                        break;
+                    }
+                }
+                if (!is_kicked)
+                {
+                    send_response(client_socket, UNKNOWN_NICKNAME);
+                }
+            }
+            else
+            {
+                send_response(client_socket, DENIED);
+            }
+        }
         else if (strcmp(command, "TOPIC") == 0 && ret == 2)
         {
             if (client == room.owner)
@@ -230,7 +275,6 @@ void *client_handler(void *arg)
 
             // Xóa client khỏi room
             char response[BUFFER_SIZE];
-
             pthread_mutex_lock(&room_mutex);
             for (int i = 0; i < room.num_clients; i++)
             {
