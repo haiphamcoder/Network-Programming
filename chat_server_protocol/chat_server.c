@@ -116,7 +116,7 @@ void *client_handler(void *arg)
         }
         else if (received_bytes == 0)
         {
-            printf("Client disconnected\n");
+            printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
             close(client_socket);
             return NULL;
         }
@@ -186,11 +186,54 @@ void *client_handler(void *arg)
                 send_response(client_socket, ALREADY_LOGGED_IN);
             }
         }
+        else if (strcmp(command, "QUIT") == 0 && ret == 1)
+        {
+            send_response(client_socket, OK);
+
+            // Xóa client khỏi room
+            char response[BUFFER_SIZE];
+            memset(response, 0, BUFFER_SIZE);
+            sprintf(response, "QUIT %s.\n", client->nickname);
+
+            pthread_mutex_lock(&room_mutex);
+            for (int i = 0; i < room.num_clients; i++)
+            {
+                if (room.clients[i] == client)
+                {
+                    for (int j = i; j < room.num_clients - 1; j++)
+                    {
+                        room.clients[j] = room.clients[j + 1];
+                    }
+                    room.num_clients--;
+                    break;
+                }
+            }
+            for (int i = 0; i < room.num_clients; i++)
+            {
+                if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                {
+                    perror("send() error");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            pthread_mutex_unlock(&room_mutex);
+
+            printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
+
+            break;
+        }
         else
         {
             send_response(client_socket, UNKNOWN_ERROR);
         }
     }
+
+    // Đóng kết nối
+    close(client_socket);
+
+    // Giải phóng bộ nhớ
+    free(client);
+
     return NULL;
 }
 
@@ -267,7 +310,6 @@ int main(int argc, char *argv[])
             client->address = client_address;
             strcpy(client->nickname, "");
             client->is_logged_in = false;
-            
             pthread_create(&tid, NULL, client_handler, (void *)client);
         }
     }
