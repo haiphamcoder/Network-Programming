@@ -1,0 +1,28 @@
+#time-label {
+    font-size: 24pt;
+    color: #ffffff;
+}
+
+.control-button {
+    font-size: 12pt;
+    background-color: #4caf50;
+    color: #ffffff;
+    padding: 8px 12px;
+}
+
+.control-button:hover {
+    background-color: #45a049;
+}
+
+.control-button:active {
+    background-color: #3e8e41;
+}
+
+.control-button-disabled {
+    font-size: 12pt;
+    background-color: #e0e0e0;
+    color: #9e9e9e;
+    padding: 8px 12px;
+    border: none;
+    box-shadow: none;
+}
