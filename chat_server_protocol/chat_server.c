@@ -186,6 +186,36 @@ void *client_handler(void *arg)
                 send_response(client_socket, ALREADY_LOGGED_IN);
             }
         }
+        else if (strcmp(command, "TOPIC") == 0 && ret == 2)
+        {
+            if (client == room.owner)
+            {
+                strcpy(room.topic, message);
+                char response[BUFFER_SIZE + 57];
+                memset(response, 0, BUFFER_SIZE + 57);
+                sprintf(response, "TOPIC %s %s\n", client->nickname, message);
+
+                pthread_mutex_lock(&room_mutex);
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (room.clients[i] != client)
+                    {
+                        if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                }
+                pthread_mutex_unlock(&room_mutex);
+
+                send_response(client_socket, OK);
+            }
+            else
+            {
+                send_response(client_socket, DENIED);
+            }
+        }
         else if (strcmp(command, "QUIT") == 0 && ret == 1)
         {
             send_response(client_socket, OK);
@@ -216,6 +246,22 @@ void *client_handler(void *arg)
                     exit(EXIT_FAILURE);
                 }
             }
+            if (room.num_clients > 0)
+            {
+                room.owner = room.clients[0];
+                memset(response, 0, BUFFER_SIZE);
+                sprintf(response, "OP %s\n", client->nickname);
+                if (send(room.owner->socket, response, strlen(response), 0) < 0)
+                {
+                    perror("send() error");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            else
+            {
+                room.owner = NULL;
+            }
+
             pthread_mutex_unlock(&room_mutex);
 
             printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
