@@ -161,7 +161,7 @@ void *client_handler(void *arg)
                         }
                         room.clients[room.num_clients] = client;
                         room.num_clients++;
-                        
+
                         // Gửi phản hồi cho client
                         client->is_logged_in = true;
                         send_response(client_socket, OK);
@@ -246,14 +246,7 @@ void *client_handler(void *arg)
                     break;
                 }
             }
-            for (int i = 0; i < room.num_clients; i++)
-            {
-                if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
-                {
-                    perror("send() error");
-                    exit(EXIT_FAILURE);
-                }
-            }
+
             if (room.num_clients > 0)
             {
                 room.owner = room.clients[0];
@@ -268,6 +261,15 @@ void *client_handler(void *arg)
             else
             {
                 room.owner = NULL;
+            }
+
+            for (int i = 0; i < room.num_clients; i++)
+            {
+                if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                {
+                    perror("send() error");
+                    exit(EXIT_FAILURE);
+                }
             }
             pthread_mutex_unlock(&room_mutex);
 
