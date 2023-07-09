@@ -161,6 +161,10 @@ void *client_handler(void *arg)
                         }
                         room.clients[room.num_clients] = client;
                         room.num_clients++;
+                        
+                        // Gửi phản hồi cho client
+                        client->is_logged_in = true;
+                        send_response(client_socket, OK);
                         if (room.num_clients == 1)
                         {
                             room.owner = client;
@@ -174,10 +178,6 @@ void *client_handler(void *arg)
                             }
                         }
                         pthread_mutex_unlock(&room_mutex);
-
-                        // Gửi phản hồi cho client
-                        client->is_logged_in = true;
-                        send_response(client_socket, OK);
                     }
                     else
                     {
