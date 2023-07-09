@@ -164,6 +164,14 @@ void *client_handler(void *arg)
                         if (room.num_clients == 1)
                         {
                             room.owner = client;
+                            char response[BUFFER_SIZE];
+                            memset(response, 0, BUFFER_SIZE);
+                            strcpy(response, "You are the owner of this room.\n");
+                            if (send(client_socket, response, strlen(response), 0) < 0)
+                            {
+                                perror("send() error");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                         pthread_mutex_unlock(&room_mutex);
 
@@ -261,7 +269,6 @@ void *client_handler(void *arg)
             {
                 room.owner = NULL;
             }
-
             pthread_mutex_unlock(&room_mutex);
 
             printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
