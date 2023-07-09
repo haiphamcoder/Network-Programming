@@ -230,8 +230,6 @@ void *client_handler(void *arg)
 
             // Xóa client khỏi room
             char response[BUFFER_SIZE];
-            memset(response, 0, BUFFER_SIZE);
-            sprintf(response, "QUIT %s.\n", client->nickname);
 
             pthread_mutex_lock(&room_mutex);
             for (int i = 0; i < room.num_clients; i++)
@@ -263,6 +261,8 @@ void *client_handler(void *arg)
                 room.owner = NULL;
             }
 
+            memset(response, 0, BUFFER_SIZE);
+            sprintf(response, "QUIT %s\n", client->nickname);
             for (int i = 0; i < room.num_clients; i++)
             {
                 if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
