@@ -16,7 +16,7 @@ typedef struct
     struct sockaddr_in address;
     char nickname[50];
     bool is_logged_in;
-    pthread_t *tid;
+    bool is_running;
 } Client;
 
 typedef struct
@@ -104,9 +104,10 @@ void *client_handler(void *arg)
     Client *client = (Client *)arg;
     int client_socket = client->socket;
     struct sockaddr_in client_address = client->address;
+    client->is_running = true;
 
     char buffer[BUFFER_SIZE];
-    while (true)
+    while (client->is_running)
     {
         memset(buffer, 0, BUFFER_SIZE);
         int received_bytes = recv(client_socket, buffer, BUFFER_SIZE, 0);
@@ -115,11 +116,27 @@ void *client_handler(void *arg)
             perror("recv() error");
             exit(EXIT_FAILURE);
         }
-        else if (received_bytes == 0)
+        else if (received_bytes == 0 || !client->is_running)
         {
             printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
-            close(client_socket);
-            return NULL;
+            if (client->is_logged_in)
+            {
+                pthread_mutex_lock(&room_mutex);
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (room.clients[i] == client)
+                    {
+                        for (int j = i; j < room.num_clients - 1; j++)
+                        {
+                            room.clients[j] = room.clients[j + 1];
+                        }
+                        room.num_clients--;
+                        break;
+                    }
+                }
+                pthread_mutex_unlock(&room_mutex);
+            }
+            break;
         }
 
         // Xử lý thông điệp
@@ -222,9 +239,8 @@ void *client_handler(void *arg)
                             }
                         }
                         send_response(client_socket, OK);
-                        
 
-                        free(room.clients[i]);
+                        room.clients[i]->is_running = false;
 
                         for (int j = i; j < room.num_clients - 1; j++)
                         {
@@ -416,7 +432,9 @@ int main(int argc, char *argv[])
             client->address = client_address;
             strcpy(client->nickname, "");
             client->is_logged_in = false;
-            pthread_create(client->tid, NULL, client_handler, (void *)client);
+            client->is_running = false;
+
+            pthread_create(&tid, NULL, client_handler, (void *)client);
         }
     }
 
