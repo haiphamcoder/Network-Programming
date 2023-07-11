@@ -107,10 +107,18 @@ void *client_handler(void *arg)
     client->is_running = true;
 
     char buffer[BUFFER_SIZE];
-    while (client->is_running)
+    while (true)
     {
         memset(buffer, 0, BUFFER_SIZE);
-        int received_bytes = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        int received_bytes = 0;
+        if (client->is_running)
+        {
+            received_bytes = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        }
+        else
+        {
+            break;
+        }
         if (received_bytes < 0)
         {
             perror("recv() error");
@@ -212,21 +220,119 @@ void *client_handler(void *arg)
                 send_response(client_socket, ALREADY_LOGGED_IN);
             }
         }
+        else if (strcmp(command, "MSG") == 0 && ret == 2)
+        {
+            char response[BUFFER_SIZE + 56];
+            memset(response, 0, BUFFER_SIZE + 56);
+            sprintf(response, "MSG %s %s\n", client->nickname, message);
+            pthread_mutex_lock(&room_mutex);
+            for (int i = 0; i < room.num_clients; i++)
+            {
+                if (room.clients[i] != client)
+                {
+                    if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                    {
+                        perror("send() error");
+                        exit(EXIT_FAILURE);
+                    }
+                }
+            }
+            send_response(client_socket, OK);
+            pthread_mutex_unlock(&room_mutex);
+        }
+        else if (strcmp(command, "PMSG") == 0 && ret == 2)
+        {
+            char nickname[50];
+            memset(nickname, 0, 50);
+            ret = sscanf(message, "%s %[^\n]", nickname, message);
+            if (ret == 2)
+            {
+                char response[BUFFER_SIZE + 57];
+                memset(response, 0, BUFFER_SIZE + 57);
+                sprintf(response, "PMSG %s %s\n", client->nickname, message);
+                pthread_mutex_lock(&room_mutex);
+                bool isFound = false;
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (strcmp(room.clients[i]->nickname, nickname) == 0)
+                    {
+                        isFound = true;
+                        if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
+                        break;
+                    }
+                }
+                if (isFound)
+                {
+                    send_response(client_socket, OK);
+                }
+                else
+                {
+                    send_response(client_socket, UNKNOWN_NICKNAME);
+                }
+                pthread_mutex_unlock(&room_mutex);
+            }
+            else
+            {
+                send_response(client_socket, UNKNOWN_ERROR);
+            }
+        }
+        else if (strcmp(command, "OP") == 0 && ret == 2)
+        {
+            if (client == room.owner)
+            {
+                char response[BUFFER_SIZE];
+                memset(response, 0, BUFFER_SIZE);
+                sprintf(response, "OP %s.\n", client->nickname);
+                pthread_mutex_lock(&room_mutex);
+                bool isFound = false;
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (room.clients[i] != client && strcmp(room.clients[i]->nickname, message) == 0)
+                    {
+                        isFound = true;
+                        room.owner = room.clients[i];
+                        if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
+                        break;
+                    }
+                }
+                if (isFound)
+                {
+                    send_response(client_socket, OK);
+                }
+                else
+                {
+                    send_response(client_socket, UNKNOWN_NICKNAME);
+                }
+                pthread_mutex_unlock(&room_mutex);
+            }
+            else
+            {
+                send_response(client_socket, DENIED);
+            }
+        }
         else if (strcmp(command, "KICK") == 0 && ret == 2)
         {
             if (client == room.owner)
             {
+                char response[BUFFER_SIZE + 55];
+                memset(response, 0, BUFFER_SIZE + 55);
+                sprintf(response, "KICK %s\n", message);
+                pthread_mutex_lock(&room_mutex);
                 bool is_kicked = false;
                 for (int i = 0; i < room.num_clients; i++)
                 {
                     if (strcmp(room.clients[i]->nickname, message) == 0)
                     {
                         is_kicked = true;
-                        char response[BUFFER_SIZE + 55];
-                        memset(response, 0, BUFFER_SIZE + 55);
-                        sprintf(response, "KICK %s\n", message);
 
-                        pthread_mutex_lock(&room_mutex);
                         for (int i = 0; i < room.num_clients; i++)
                         {
                             if (room.clients[i] != client)
@@ -248,7 +354,6 @@ void *client_handler(void *arg)
                         }
                         room.num_clients--;
 
-                        pthread_mutex_unlock(&room_mutex);
                         break;
                     }
                 }
@@ -256,6 +361,7 @@ void *client_handler(void *arg)
                 {
                     send_response(client_socket, UNKNOWN_NICKNAME);
                 }
+                pthread_mutex_unlock(&room_mutex);
             }
             else
             {
