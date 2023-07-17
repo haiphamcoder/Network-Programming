@@ -1,9 +1,19 @@
 #include <gtk/gtk.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
 
 GtkWidget *login_window;
 GtkWidget *chat_window;
 GtkTextBuffer *chat_buffer;
 GtkWidget *chat_view;
+
+int client_socket = -1;
 
 void show_message_dialog(const gchar *message)
 {
@@ -16,38 +26,15 @@ void show_message_dialog(const gchar *message)
     gtk_widget_destroy(dialog);
 }
 
-void on_join_button_clicked(GtkWidget *button, gpointer user_data)
-{
-    GtkWidget *username_entry = GTK_WIDGET(user_data);
-
-    const gchar *username = gtk_entry_get_text(GTK_ENTRY(username_entry));
-
-    if (g_utf8_strlen(username, -1) > 0)
-    {
-        if (g_utf8_validate(username, -1, NULL))
-        {
-            // Join thành công
-            gtk_widget_hide(login_window);
-            gtk_widget_show_all(chat_window);
-        }
-        else
-        {
-            // Thông báo lỗi
-            show_message_dialog("Tên người dùng không hợp lệ");
-        }
-    }
-    else
-    {
-        // Thông báo lỗi
-        show_message_dialog("Vui lòng nhập tên người dùng");
-    }
-}
-
 void on_send_button_clicked(GtkWidget *button, gpointer user_data)
 {
+    char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
+
     // Gửi tin nhắn
     GtkEntry *entry = GTK_ENTRY(user_data);
     const gchar *text = gtk_entry_get_text(entry);
+    sprintf(buffer, "%s\n", text);
 
     if (g_utf8_validate(text, -1, NULL) && g_utf8_strlen(text, -1) > 0)
     {
@@ -64,6 +51,16 @@ void on_send_button_clicked(GtkWidget *button, gpointer user_data)
 
         // Xóa nội dung tin nhắn
         gtk_entry_set_text(entry, "");
+
+        if (send(client_socket, buffer, strlen(buffer), 0) < 0)
+        {
+            if(!(errno == EAGAIN || errno == EWOULDBLOCK))
+            {
+                // Lỗi
+                perror("send");
+                return;
+            }
+        }
     }
 }
 
@@ -73,32 +70,85 @@ void on_chat_window_destroy(GtkWidget *widget, gpointer user_data)
     gtk_main_quit();
 }
 
+void *client_recv_handle(void *arg)
+{
+    gchar buffer[1024];
+
+    while (1)
+    {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+        if (bytes_received > 0)
+        {
+            // Tin nhắn hợp lệ, hiển thị trong chat_view
+            GtkTextIter iter;
+            gtk_text_buffer_get_end_iter(chat_buffer, &iter);
+            gtk_text_buffer_insert(chat_buffer, &iter, buffer, -1);
+
+            // Cuộn xuống cuối cùng
+            GtkAdjustment *adjustment = gtk_scrollable_get_vadjustment(GTK_SCROLLABLE(chat_view));
+            gtk_adjustment_set_value(adjustment, gtk_adjustment_get_upper(adjustment) - gtk_adjustment_get_page_size(adjustment));
+            gtk_scrollable_set_vadjustment(GTK_SCROLLABLE(chat_view), adjustment);
+        }
+        else if (bytes_received == 0)
+        {
+            // Đóng kết nối
+            close(client_socket);
+            client_socket = -1;
+
+            // Thông báo lỗi
+            show_message_dialog("Server disconnected");
+
+            // Đóng cửa sổ chat
+            gtk_main_quit();
+        }
+        else if (bytes_received < 0)
+        {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                // Không có dữ liệu
+                usleep(1000);
+            }
+            else
+            {
+                // Lỗi
+                perror("recv");
+                break;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 int main(int argc, char *argv[])
 {
+    // Khởi tạo socket
+    client_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (client_socket < 0)
+    {
+        perror("socket");
+        return 1;
+    }
+
+    // Thiết lập địa chỉ server
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(9000);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    // Kết nối tới server
+    if (connect(client_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+    {
+        perror("connect");
+        return 1;
+    }
+
+    fcntl(client_socket, F_SETFL, O_NONBLOCK);
+
+    // Khởi tạo GTK
     gtk_init(&argc, &argv);
-
-    // Tạo cửa sổ đăng nhập
-    login_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(login_window), "Đăng nhập");
-    gtk_container_set_border_width(GTK_CONTAINER(login_window), 10);
-    gtk_widget_set_size_request(login_window, 300, 200);
-    g_signal_connect(G_OBJECT(login_window), "destroy", G_CALLBACK(gtk_main_quit), NULL);
-
-    GtkWidget *login_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_add(GTK_CONTAINER(login_window), login_box);
-
-    GtkWidget *username_label = gtk_label_new("Tên người dùng");
-    GtkWidget *username_entry = gtk_entry_new();
-    g_signal_connect(G_OBJECT(username_entry), "activate", G_CALLBACK(on_join_button_clicked), username_entry);
-    GtkWidget *join_button = gtk_button_new_with_label("Tham gia");
-
-    gtk_widget_set_hexpand(username_entry, TRUE);
-
-    gtk_box_pack_start(GTK_BOX(login_box), username_label, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(login_box), username_entry, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(login_box), join_button, FALSE, FALSE, 0);
-
-    g_signal_connect(G_OBJECT(join_button), "clicked", G_CALLBACK(on_join_button_clicked), username_entry);
 
     // Tạo cửa sổ chat
     chat_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -135,8 +185,17 @@ int main(int argc, char *argv[])
     // Xử lý sự kiện nhấn phím Enter từ input_entry
     g_signal_connect(G_OBJECT(input_entry), "activate", G_CALLBACK(on_send_button_clicked), input_entry);
 
-    gtk_widget_hide(chat_window);
-    gtk_widget_show_all(login_window);
+    gtk_widget_show_all(chat_window);
+
+    // Xử lý nhận tin nhắn
+    pthread_t recv_thread;
+    if (pthread_create(&recv_thread, NULL, client_recv_handle, NULL) < 0)
+    {
+        show_message_dialog("Error creating thread");
+        close(client_socket);
+        client_socket = -1;
+        gtk_main_quit();
+    }
 
     gtk_main();
 
