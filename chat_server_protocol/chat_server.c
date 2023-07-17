@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <fcntl.h>
+#include <errno.h>
 
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 10
@@ -23,7 +25,7 @@ typedef struct
 {
     Client *clients[MAX_CLIENTS];
     int num_clients;
-    Client *owner;
+    int owner;
     char topic[50];
 } ChatRoom;
 
@@ -38,7 +40,7 @@ typedef enum
     UNKNOWN_ERROR = 999
 } ResponseCode;
 
-ChatRoom room = {.num_clients = 0, .owner = NULL, .topic = ""};
+ChatRoom room = {.num_clients = 0, .owner = -1, .topic = ""};
 pthread_mutex_t room_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void send_response(int socket, ResponseCode code)
@@ -82,8 +84,15 @@ void send_response(int socket, ResponseCode code)
 
     if (send(socket, response, strlen(response), 0) < 0)
     {
-        perror("send() error");
-        exit(EXIT_FAILURE);
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+        {
+            return;
+        }
+        else
+        {
+            perror("send() error");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -107,29 +116,29 @@ void *client_handler(void *arg)
     client->is_running = true;
 
     char buffer[BUFFER_SIZE];
-    while (true)
+    while (client->is_running)
     {
         memset(buffer, 0, BUFFER_SIZE);
-        int received_bytes = 0;
-        if (client->is_running)
-        {
-            received_bytes = recv(client_socket, buffer, BUFFER_SIZE, 0);
-        }
-        else
-        {
-            break;
-        }
+        int received_bytes = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (received_bytes < 0)
         {
-            perror("recv() error");
-            exit(EXIT_FAILURE);
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                continue;
+            }
+            else
+            {
+                perror("recv() error");
+                exit(EXIT_FAILURE);
+            }
         }
-        else if (received_bytes == 0 || !client->is_running)
+        else if (received_bytes == 0)
         {
+            client->is_running = false;
             printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
+            pthread_mutex_lock(&room_mutex);
             if (client->is_logged_in)
             {
-                pthread_mutex_lock(&room_mutex);
                 for (int i = 0; i < room.num_clients; i++)
                 {
                     if (room.clients[i] == client)
@@ -142,8 +151,52 @@ void *client_handler(void *arg)
                         break;
                     }
                 }
-                pthread_mutex_unlock(&room_mutex);
+
+                if (room.num_clients > 0)
+                {
+                    if (room.owner == client->socket)
+                    {
+                        room.owner = room.clients[0]->socket;
+                        char msg[BUFFER_SIZE];
+                        sprintf(msg, "OP %s\n", client->nickname);
+                        if (send(room.owner, msg, strlen(msg), 0) < 0)
+                        {
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                continue;
+                            }
+                            else
+                            {
+                                perror("send() error");
+                                exit(EXIT_FAILURE);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    room.owner = -1;
+                }
+
+                char msg[BUFFER_SIZE];
+                sprintf(msg, "QUIT %s\n", client->nickname);
+                for (int i = 0; i < room.num_clients; i++)
+                {
+                    if (send(room.clients[i]->socket, msg, strlen(msg), 0) < 0)
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                }
             }
+            pthread_mutex_unlock(&room_mutex);
             break;
         }
 
@@ -153,6 +206,7 @@ void *client_handler(void *arg)
         memset(command, 0, 20);
         memset(message, 0, BUFFER_SIZE);
         int ret = sscanf(buffer, "%s %[^\n]", command, message);
+        pthread_mutex_lock(&room_mutex);
         if (strcmp(command, "JOIN") == 0 && ret == 2)
         {
             if (!client->is_logged_in)
@@ -176,13 +230,19 @@ void *client_handler(void *arg)
                         strcpy(client->nickname, message);
 
                         // Thêm client vào room
-                        pthread_mutex_lock(&room_mutex);
                         for (int i = 0; i < room.num_clients; i++)
                         {
                             if (send(room.clients[i]->socket, buffer, strlen(buffer), 0) < 0)
                             {
-                                perror("send() error");
-                                exit(EXIT_FAILURE);
+                                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    perror("send() error");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                         }
                         room.clients[room.num_clients] = client;
@@ -193,17 +253,23 @@ void *client_handler(void *arg)
                         send_response(client_socket, OK);
                         if (room.num_clients == 1)
                         {
-                            room.owner = client;
+                            room.owner = client->socket;
                             char response[BUFFER_SIZE];
                             memset(response, 0, BUFFER_SIZE);
                             strcpy(response, "You are the owner of this room.\n");
                             if (send(client_socket, response, strlen(response), 0) < 0)
                             {
-                                perror("send() error");
-                                exit(EXIT_FAILURE);
+                                if (errno == EAGAIN || errno == EWOULDBLOCK)
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    perror("send() error");
+                                    exit(EXIT_FAILURE);
+                                }
                             }
                         }
-                        pthread_mutex_unlock(&room_mutex);
                     }
                     else
                     {
@@ -225,20 +291,25 @@ void *client_handler(void *arg)
             char response[BUFFER_SIZE + 56];
             memset(response, 0, BUFFER_SIZE + 56);
             sprintf(response, "MSG %s %s\n", client->nickname, message);
-            pthread_mutex_lock(&room_mutex);
             for (int i = 0; i < room.num_clients; i++)
             {
                 if (room.clients[i] != client)
                 {
                     if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
                     {
-                        perror("send() error");
-                        exit(EXIT_FAILURE);
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
                     }
                 }
             }
             send_response(client_socket, OK);
-            pthread_mutex_unlock(&room_mutex);
         }
         else if (strcmp(command, "PMSG") == 0 && ret == 2)
         {
@@ -250,7 +321,6 @@ void *client_handler(void *arg)
                 char response[BUFFER_SIZE + 57];
                 memset(response, 0, BUFFER_SIZE + 57);
                 sprintf(response, "PMSG %s %s\n", client->nickname, message);
-                pthread_mutex_lock(&room_mutex);
                 bool isFound = false;
                 for (int i = 0; i < room.num_clients; i++)
                 {
@@ -259,8 +329,15 @@ void *client_handler(void *arg)
                         isFound = true;
                         if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
                         {
-                            perror("send() error");
-                            exit(EXIT_FAILURE);
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                continue;
+                            }
+                            else
+                            {
+                                perror("send() error");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                         break;
                     }
@@ -273,7 +350,6 @@ void *client_handler(void *arg)
                 {
                     send_response(client_socket, UNKNOWN_NICKNAME);
                 }
-                pthread_mutex_unlock(&room_mutex);
             }
             else
             {
@@ -282,23 +358,29 @@ void *client_handler(void *arg)
         }
         else if (strcmp(command, "OP") == 0 && ret == 2)
         {
-            if (client == room.owner)
+            if (client->socket == room.owner)
             {
                 char response[BUFFER_SIZE];
                 memset(response, 0, BUFFER_SIZE);
                 sprintf(response, "OP %s.\n", client->nickname);
-                pthread_mutex_lock(&room_mutex);
                 bool isFound = false;
                 for (int i = 0; i < room.num_clients; i++)
                 {
                     if (room.clients[i] != client && strcmp(room.clients[i]->nickname, message) == 0)
                     {
                         isFound = true;
-                        room.owner = room.clients[i];
+                        room.owner = room.clients[i]->socket;
                         if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
                         {
-                            perror("send() error");
-                            exit(EXIT_FAILURE);
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                continue;
+                            }
+                            else
+                            {
+                                perror("send() error");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                         break;
                     }
@@ -311,7 +393,6 @@ void *client_handler(void *arg)
                 {
                     send_response(client_socket, UNKNOWN_NICKNAME);
                 }
-                pthread_mutex_unlock(&room_mutex);
             }
             else
             {
@@ -320,40 +401,80 @@ void *client_handler(void *arg)
         }
         else if (strcmp(command, "KICK") == 0 && ret == 2)
         {
-            if (client == room.owner)
+            if (client->socket == room.owner)
             {
-                char response[BUFFER_SIZE + 55];
-                memset(response, 0, BUFFER_SIZE + 55);
-                sprintf(response, "KICK %s\n", message);
-                pthread_mutex_lock(&room_mutex);
+                char response[BUFFER_SIZE + 56];
+                memset(response, 0, BUFFER_SIZE + 56);
+                sprintf(response, "KICK %s %s\n", message, client->nickname);
                 bool is_kicked = false;
                 for (int i = 0; i < room.num_clients; i++)
                 {
                     if (strcmp(room.clients[i]->nickname, message) == 0)
                     {
+                        send_response(room.owner, OK);
                         is_kicked = true;
-
-                        for (int i = 0; i < room.num_clients; i++)
+                        for (int j = 0; j < room.num_clients; j++)
                         {
-                            if (room.clients[i] != client)
+                            if (room.clients[j] != client)
                             {
-                                if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
+                                if (send(room.clients[j]->socket, response, strlen(response), 0) < 0)
                                 {
-                                    perror("send() error");
-                                    exit(EXIT_FAILURE);
+                                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                                    {
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        perror("send() error");
+                                        exit(EXIT_FAILURE);
+                                    }
                                 }
                             }
                         }
-                        send_response(client_socket, OK);
 
-                        room.clients[i]->is_running = false;
+                        printf("Client from %s:%d disconnected\n", inet_ntoa(room.clients[i]->address.sin_addr), ntohs(room.clients[i]->address.sin_port));
 
-                        for (int j = i; j < room.num_clients - 1; j++)
+                        if (room.clients[i]->socket == client->socket)
                         {
-                            room.clients[j] = room.clients[j + 1];
+                            client->is_running = false;
+                            if (room.num_clients > 1)
+                            {
+                                for (int j = i; j < room.num_clients - 1; j++)
+                                {
+                                    room.clients[j] = room.clients[j + 1];
+                                }
+                                room.owner = room.clients[0]->socket;
+                                char msg[BUFFER_SIZE + 55];
+                                memset(msg, 0, BUFFER_SIZE + 55);
+                                sprintf(msg, "OP %s.\n", client->nickname);
+                                if (send(room.owner, msg, strlen(msg), 0) < 0)
+                                {
+                                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                                    {
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        perror("send() error");
+                                        exit(EXIT_FAILURE);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                room.owner = -1;
+                            }
+                            room.num_clients--;
                         }
-                        room.num_clients--;
-
+                        else
+                        {
+                            room.clients[i]->is_running = false;
+                            for (int j = i; j < room.num_clients - 1; j++)
+                            {
+                                room.clients[j] = room.clients[j + 1];
+                            }
+                            room.num_clients--;
+                        }
                         break;
                     }
                 }
@@ -361,7 +482,6 @@ void *client_handler(void *arg)
                 {
                     send_response(client_socket, UNKNOWN_NICKNAME);
                 }
-                pthread_mutex_unlock(&room_mutex);
             }
             else
             {
@@ -370,27 +490,30 @@ void *client_handler(void *arg)
         }
         else if (strcmp(command, "TOPIC") == 0 && ret == 2)
         {
-            if (client == room.owner)
+            if (client->socket == room.owner)
             {
                 strcpy(room.topic, message);
                 char response[BUFFER_SIZE + 57];
                 memset(response, 0, BUFFER_SIZE + 57);
                 sprintf(response, "TOPIC %s %s\n", client->nickname, message);
-
-                pthread_mutex_lock(&room_mutex);
                 for (int i = 0; i < room.num_clients; i++)
                 {
                     if (room.clients[i] != client)
                     {
                         if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
                         {
-                            perror("send() error");
-                            exit(EXIT_FAILURE);
+                            if (errno == EAGAIN || errno == EWOULDBLOCK)
+                            {
+                                continue;
+                            }
+                            else
+                            {
+                                perror("send() error");
+                                exit(EXIT_FAILURE);
+                            }
                         }
                     }
                 }
-                pthread_mutex_unlock(&room_mutex);
-
                 send_response(client_socket, OK);
             }
             else
@@ -400,11 +523,11 @@ void *client_handler(void *arg)
         }
         else if (strcmp(command, "QUIT") == 0 && ret == 1)
         {
+            client->is_running = false;
             send_response(client_socket, OK);
 
             // Xóa client khỏi room
             char response[BUFFER_SIZE];
-            pthread_mutex_lock(&room_mutex);
             for (int i = 0; i < room.num_clients; i++)
             {
                 if (room.clients[i] == client)
@@ -418,20 +541,31 @@ void *client_handler(void *arg)
                 }
             }
 
-            if (room.num_clients > 0 && client == room.owner)
+            if (room.num_clients > 0)
             {
-                room.owner = room.clients[0];
-                memset(response, 0, BUFFER_SIZE);
-                sprintf(response, "OP %s\n", client->nickname);
-                if (send(room.owner->socket, response, strlen(response), 0) < 0)
+                if (room.owner == client->socket)
                 {
-                    perror("send() error");
-                    exit(EXIT_FAILURE);
+                    room.owner = room.clients[0]->socket;
+                    char msg[BUFFER_SIZE + 55];
+                    memset(msg, 0, BUFFER_SIZE + 55);
+                    sprintf(msg, "OP %s.\n", client->nickname);
+                    if (send(room.owner, msg, strlen(msg), 0) < 0)
+                    {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK)
+                        {
+                            continue;
+                        }
+                        else
+                        {
+                            perror("send() error");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
                 }
             }
             else
             {
-                room.owner = NULL;
+                room.owner = -1;
             }
 
             memset(response, 0, BUFFER_SIZE);
@@ -440,20 +574,26 @@ void *client_handler(void *arg)
             {
                 if (send(room.clients[i]->socket, response, strlen(response), 0) < 0)
                 {
-                    perror("send() error");
-                    exit(EXIT_FAILURE);
+                    if (errno == EAGAIN || errno == EWOULDBLOCK)
+                    {
+                        continue;
+                    }
+                    else
+                    {
+                        perror("send() error");
+                        exit(EXIT_FAILURE);
+                    }
                 }
             }
-            pthread_mutex_unlock(&room_mutex);
 
             printf("Client from %s:%d disconnected.\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
-
-            break;
+            pthread_mutex_unlock(&room_mutex);
         }
         else
         {
             send_response(client_socket, UNKNOWN_ERROR);
         }
+        pthread_mutex_unlock(&room_mutex);
     }
 
     // Đóng kết nối
@@ -508,6 +648,7 @@ int main(int argc, char *argv[])
 
     pthread_t tid;
     pthread_mutex_init(&room_mutex, NULL);
+
     while (true)
     {
         struct sockaddr_in client_address;
@@ -516,31 +657,44 @@ int main(int argc, char *argv[])
         int client_socket = accept(server_socket, (struct sockaddr *)&client_address, &client_address_len);
         if (client_socket < 0)
         {
+            if (errno == EWOULDBLOCK)
+            {
+                sleep(1);
+                continue;
+            }
+            else
+            {
+                perror("accept() error");
+                exit(EXIT_FAILURE);
+            }
             perror("accept() error");
             exit(EXIT_FAILURE);
         }
-
-        printf("New client connected from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
-
-        // Kiểm tra số lượng client
-        if (room.num_clients >= MAX_CLIENTS)
-        {
-            printf("Room is full\n");
-            close(client_socket);
-            continue;
-        }
         else
         {
-            // Tạo một client mới và thêm vào room
-            Client *client = (Client *)malloc(sizeof(Client));
-            memset(client, 0, sizeof(Client));
-            client->socket = client_socket;
-            client->address = client_address;
-            strcpy(client->nickname, "");
-            client->is_logged_in = false;
-            client->is_running = false;
+            printf("New client connected from %s:%d\n", inet_ntoa(client_address.sin_addr), ntohs(client_address.sin_port));
 
-            pthread_create(&tid, NULL, client_handler, (void *)client);
+            // Kiểm tra số lượng client
+            if (room.num_clients >= MAX_CLIENTS)
+            {
+                printf("Room is full\n");
+                close(client_socket);
+                continue;
+            }
+            else
+            {
+                // Tạo một client mới và thêm vào room
+                Client *client = (Client *)malloc(sizeof(Client));
+                memset(client, 0, sizeof(Client));
+                client->socket = client_socket;
+                client->address = client_address;
+                strcpy(client->nickname, "");
+                client->is_logged_in = false;
+                client->is_running = false;
+
+                fcntl(client_socket, F_SETFL, O_NONBLOCK);
+                pthread_create(&tid, NULL, client_handler, (void *)client);
+            }
         }
     }
 
